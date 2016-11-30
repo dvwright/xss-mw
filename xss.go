@@ -1,12 +1,13 @@
 package xss
 
 import (
-	//"errors"
+	"errors"
 	"github.com/gin-gonic/gin"
 	//"net/http/httputil" // debugging
-	//"net/http"
+	"net/http"
 	//"strings"
 	//"time"
+	"encoding/json"
 	"fmt"
 )
 
@@ -217,24 +218,131 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	// jsnErr := json.NewDecoder(c.Request.Body).Decode(&postCustomHandle)
 	//	token := c.Query(key)
 
-	hdrs := c.Request.Header
-	fmt.Printf("%q", hdrs)
-	fmt.Printf("%v", hdrs)
+	//req := c.Request
+	//fmt.Printf("%v", req)
+
+	//hdrs := c.Request.Header
+	//fmt.Printf("%q", hdrs) ; fmt.Printf("%v", hdrs)
+
+	// https://golang.org/pkg/net/http/#Request
+
+	ReqMethod := c.Request.Method
+	fmt.Printf("%v Method\n", ReqMethod)
+
+	ReqURL := c.Request.URL
+	fmt.Printf("%v URL\n", ReqURL)
+
+	ReqBody := c.Request.Body
+	fmt.Printf("%v URL\n", ReqBody)
+
 	ct_hdr := c.Request.Header.Get("Content-Type") // [application/json]
-	fmt.Printf("%v", ct_hdr)
+	fmt.Printf("%v\n", ct_hdr)                     // -> application/json
 
-	req := c.Request
-	fmt.Printf("%v", req)
+	//bod := c.Request.Body // Body io.ReadCloser
+	////fmt.Printf("%q", bod)
+	//////fmt.Printf("%v", bod)
+	//fmt.Printf("%#v", bod)
 
-	bod := c.Request.Body
-	fmt.Printf("%q", bod)
-	fmt.Printf("%v", bod)
-	fmt.Printf("%#v", bod)
+	//frm := c.Request.Form
+	//fmt.Printf("%v", frm)
 
+	//pfrm := c.Request.PostForm
+	//fmt.Printf("%v", pfrm)
+
+	//req := c.Request
+	//fmt.Printf("%v\n", req)
+
+	// might have to set expected application type
+	// in this case 'request type' =  application/json
+	if ct_hdr == "application/json" {
+
+		// expected type matched, apply filter, update data, continue, hand off
+		var postCustomHandle map[string]interface{}
+		jsnErr := json.NewDecoder(ReqBody).Decode(&postCustomHandle)
+		if jsnErr == nil {
+			//map[updated_by:537 updated_at:1.480536294e+09
+			//name:Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs aw354
+			//description:Iñtërnâtiônàlizætiøn project  asdfasdf aw35as
+			//status:Recording
+			//key:E
+			//created_by:537
+			//created_at:1.474448233e+09
+			//id:1
+			//genre:7
+			//sub_genre:77
+			//bpm:117
+			//visibility:Public]
+			//[GIN-debug] [WARNING] Headers were already written.
+			//Wanted to override status code 400 with 404
+			fmt.Printf("%v", postCustomHandle)
+			//return c
+			//(c *gin.Context)
+			var err = errors.New
+			// see https://golang.org/src/net/http/request.go
+			// func NewRequest(method, urlStr string, body io.Reader) (*Request, error) {
+			// XXX TODO create a new ReqBody
+
+			c.Request, err = http.NewRequest(ReqMethod, ReqURL, ReqBody)
+			if err == nil {
+				// how to upload global gin c.Content?
+				return c
+			}
+
+		} else {
+			fmt.Println("Failed")
+		}
+		//if jsnErr == nil {
+		//        // DESC table to get fields?
+		//	proj_id := postCustomHandle["project_id"]
+		//	talent_ids := postCustomHandle["talent_ids"]
+		//	if proj_id == nil || talent_ids == nil {
+		//		c.JSON(http.StatusBadRequest, gin.H{"message": "required paramaters cannot be empty."})
+		//		return
+		//	} else {
+		//		//project_id := postCustomHandle["proj_id"].(string)
+		//		project_id = proj_id.(string)
+		//	}
+		//} else {
+		//	cglog.CGlog.Println(c.Request.Body)
+		//	cglog.CGlog.Printf("%T", c.Request.Body)
+		//	cglog.CGlog.Print(jsnErr)
+		//	c.JSON(http.StatusBadRequest, gin.H{"message": "error handling parameters"})
+		//	return
+		//}
+
+	}
 	//return errors.New("Filter error")
 	return nil
 
 }
+
+func ConstructRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println(r.Method, "-", r.RequestURI)
+		cookie, _ := r.Cookie("username")
+		if cookie != nil {
+			//Add data to context
+			ctx := context.WithValue(r.Context(), "Username", cookie.Value)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		} else {
+			next.ServeHTTP(w, r)
+		}
+	})
+}
+
+// func AddContext(next http.Handler) http.Handler {
+//   return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//     log.Println(r.Method, "-", r.RequestURI)
+//     cookie, _ := r.Cookie("username")
+//     if cookie != nil {
+//       //Add data to context
+//       ctx := context.WithValue(r.Context(), "Username", cookie.Value)
+//       next.ServeHTTP(w, r.WithContext(ctx))
+//     } else {
+//       next.ServeHTTP(w, r)
+//     }
+//   })
+// }
 
 // var postCustomHandle map[string]interface{}
 // jsnErr := json.NewDecoder(c.Request.Body).Decode(&postCustomHandle)
