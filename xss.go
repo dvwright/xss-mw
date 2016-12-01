@@ -1,19 +1,28 @@
 package xss
 
 import (
-	// "errors"
+	//"errors"
 	"github.com/gin-gonic/gin"
 	//"net/http/httputil" // debugging
-	"net/http"
+	//"net/http"
 	//"strings"
+	"bytes"
 	//"time"
 	"encoding/json"
 	"fmt"
 	//"html"
 	//"io"
-	//"io/ioutil"
+	"io/ioutil"
 	//"net/url"
+	//"os"
+	"strconv"
 )
+
+//type nopCloser struct {
+//	io.Reader
+//}
+//
+//func (nopCloser) Close() os.Error { return nil }
 
 // GinXSSMiddleware provides an 'auto' remove XSS malicious from all submitted user input.
 // e.g. POST and PUT
@@ -235,43 +244,9 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	ct_hdr := c.Request.Header.Get("Content-Type") // [application/json]
 	fmt.Printf("%v\n", ct_hdr)                     // -> application/json
 
-	////var reader io.Reader = ReqBody
-	//var reader io.Reader = c.Request.Body
-	//b, e := ioutil.ReadAll(reader)
-	//if e != nil {
-	//	fmt.Println("Error")
-	//}
-	//vs, perr := url.ParseQuery(string(b))
-	//if perr != nil {
-	//	fmt.Println("Error")
-	//}
-	//// url.Values{"{\"id\":1,\"name\":\"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs\",\"description\":\"Iñtërnâtiônàlizætiøn project  asdfasdf\",\"status\":\"Recording\",\"genre\":\"7\",\"sub_genre\":\"77\",\"bpm\":\"117\",\"key\":\"E\",\"visibility\":\"Public\",\"created_by\":537,\"created_at\":1474448233,\"updated_by\":537,\"updated_at\":1480613545}":[]string{""}}map[{"id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description":"Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","genre":"7","sub_genre":"77","bpm":"117","key":"E","visibility":"Public","created_by":537,"created_at":1474448233,"updated_by":537,"updated_at":1480613545}
-	////fmt.Printf("%#v", vs)
-	////fmt.Printf("%v", vs)
 	//// https://golang.org/src/net/http/request.go
-	////fmt.Printf("%#v\n\n\n", vs)
-	//for k, vvs := range vs {
-	//	fmt.Println(k)
-	//	fmt.Println(vvs)
-	//	//for _, value := range vvs {
-	//	//	//dst.Add(k, value)
-	//	//	fmt.Println(value)
-	//	//}
-	//}
-
-	//func copyValues(dst, src url.Values) {
-	//        for k, vs := range src {
-	//                for _, value := range vs {
-	//                        dst.Add(k, value)
-	//                }
-	//        }
-	//}
-
-	//// might have to set expected application type
-	//// in this case 'request type' =  application/json
+	// set expected application type
 	if ct_hdr == "application/json" {
-
-		// expected type matched, apply filter, update data, continue, hand off
 		var jsonBod interface{}
 		jsnErr := json.NewDecoder(ReqBody).Decode(&jsonBod)
 		if jsnErr == nil {
@@ -289,28 +264,55 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 			//hdr := c.Request.Header
 			//fmt.Printf("%v Header\n", hdr)
 
+			//oP := `{"name": "` + testName + `", "description":"` + testDescription + `" ,"mix_id": 1000000, "status":"` + testS    +++tatus + `", "genre": "` + testMGenre + `", "bpm": "52","key": "` + testKey + `","visibility": "` + testVisibility + `"}`
+			var buff bytes.Buffer
+			buff.WriteString(`{`)
+
 			m := jsonBod.(map[string]interface{})
 			for k, v := range m {
 				fmt.Println(k, v)
-				//switch vv := v.(type) {
-				//case string:
-				//	fmt.Println(k, "is string", vv)
-				//case int:
-				//	fmt.Println(k, "is int", vv)
-				//case int64:
-				//	fmt.Println(k, "is int64", vv)
-				//case []interface{}:
-				//	fmt.Println(k, "is an array:")
-				//	for i, u := range vv {
-				//		fmt.Println(i, u)
-				//	}
-				//default:
-				//	fmt.Println(k, "is of a type I don't know how to handle")
-				//	fmt.Println("%#v", vv)
-				//}
+				buff.WriteString(`"`)
+				buff.WriteString(k)
+				buff.WriteString(`":`)
+				buff.WriteString(`"`)
+				//buff.WriteString(v.(string))
+				//buff.WriteString(`",`)
+
+				switch vv := v.(type) {
+				case string:
+					fmt.Println(k, "is string", vv)
+					buff.WriteString(vv)
+				case int:
+					fmt.Println(k, "is int", vv)
+					buff.WriteString(strconv.Itoa(vv))
+				case int64:
+					fmt.Println(k, "is int64", vv)
+					//buff.WriteString(strconv.Itoa(vv))
+				case []interface{}:
+					fmt.Println(k, "is an array:")
+					for i, u := range vv {
+						fmt.Println(i, u)
+					}
+				default:
+					fmt.Println(k, "is of a type I don't know how to handle")
+					fmt.Println("%#v", vv)
+					//buff.WriteString(strconv.Itoa(vv))
+				}
+				buff.WriteString(`",`)
 			}
-			c.Request, jsnErr = http.NewRequest(ReqMethod, ReqURL.String(), ReqBody)
-			c.Request.Header = ReqHeader
+			//buff = buff[0 : len(buff)-1]
+
+			//json.NewEncoder(b).Encode(u)
+			//fmt.Printf("%v", jsonBod)
+			//c.Request, jsnErr = http.NewRequest(ReqMethod, ReqURL.String(), ReqBody)
+			//c.Request.Header = ReqHeader
+			//c.Request.Body = strings.NewReader(data.Encode())
+			//c.Request.Body = strings.NewReader(jsonBod)
+			//c.Request.Body = bytes.NewBufferString(jsonBod)
+
+			// req.Body = ioutil.NopCloser(bytes.NewReader([]byte("foo")))
+			//c.Request.Body = nopCloser{bytes.NewBufferString(buff.String())}
+			c.Request.Body = ioutil.NopCloser(bytes.NewReader([]byte(buff.String())))
 
 		} else {
 			fmt.Println("Failed")
