@@ -1,7 +1,7 @@
 package xss
 
 import (
-	"errors"
+	// "errors"
 	"github.com/gin-gonic/gin"
 	//"net/http/httputil" // debugging
 	"net/http"
@@ -9,6 +9,7 @@ import (
 	//"time"
 	"encoding/json"
 	"fmt"
+	//"html"
 )
 
 // GinXSSMiddleware provides an 'auto' remove XSS malicious from all submitted user input.
@@ -222,7 +223,11 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	//fmt.Printf("%v", req)
 
 	//hdrs := c.Request.Header
-	//fmt.Printf("%q", hdrs) ; fmt.Printf("%v", hdrs)
+	//fmt.Printf("%q", hdrs)
+	//fmt.Printf("%v", hdrs)
+
+	ReqHeader := c.Request.Header
+	fmt.Printf("%v Header\n", ReqHeader)
 
 	// https://golang.org/pkg/net/http/#Request
 
@@ -252,83 +257,142 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	//req := c.Request
 	//fmt.Printf("%v\n", req)
 
-	// might have to set expected application type
-	// in this case 'request type' =  application/json
-	if ct_hdr == "application/json" {
+	////for k, v := range ReqBody {
+	//for k, v := range c.Params {
+	//	fmt.Println("key:", k)
+	//	//fmt.Println("val:", strings.Join(v, ""))
+	//	fmt.Println("val:", v)
+	//}
 
-		// expected type matched, apply filter, update data, continue, hand off
-		var postCustomHandle map[string]interface{}
-		jsnErr := json.NewDecoder(ReqBody).Decode(&postCustomHandle)
-		if jsnErr == nil {
-			//map[updated_by:537 updated_at:1.480536294e+09
-			//name:Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs aw354
-			//description:Iñtërnâtiônàlizætiøn project  asdfasdf aw35as
-			//status:Recording
-			//key:E
-			//created_by:537
-			//created_at:1.474448233e+09
-			//id:1
-			//genre:7
-			//sub_genre:77
-			//bpm:117
-			//visibility:Public]
-			//[GIN-debug] [WARNING] Headers were already written.
-			//Wanted to override status code 400 with 404
-			fmt.Printf("%v", postCustomHandle)
-			//return c
-			//(c *gin.Context)
-			var err = errors.New
-			// see https://golang.org/src/net/http/request.go
-			// func NewRequest(method, urlStr string, body io.Reader) (*Request, error) {
-			// XXX TODO create a new ReqBody
+	//c.Request, jsnErr = http.NewRequest(ReqMethod, ReqURL.String(), ReqBody)
+	//c.Request.Header = ReqHeader
 
-			c.Request, err = http.NewRequest(ReqMethod, ReqURL, ReqBody)
-			if err == nil {
-				// how to upload global gin c.Content?
-				return c
-			}
+	//if jsnErr == nil {
+	//	// how to upload global gin c.Content?
+	//	fmt.Println("HEREq")
 
-		} else {
-			fmt.Println("Failed")
-		}
-		//if jsnErr == nil {
-		//        // DESC table to get fields?
-		//	proj_id := postCustomHandle["project_id"]
-		//	talent_ids := postCustomHandle["talent_ids"]
-		//	if proj_id == nil || talent_ids == nil {
-		//		c.JSON(http.StatusBadRequest, gin.H{"message": "required paramaters cannot be empty."})
-		//		return
-		//	} else {
-		//		//project_id := postCustomHandle["proj_id"].(string)
-		//		project_id = proj_id.(string)
+	//	hdr := c.Request.Header
+	//	fmt.Printf("%v Header\n", hdr)
+	//}
+
+	//var f interface{}
+	//err := c.Bind(&f)
+	//if err == nil {
+	//	fmt.Printf("%v", f)
+	//}
+	//switch tltids := postCustomHandle["talent_ids"].(type) {
+	//case []interface{}:
+	//	for _, val := range tltids {
+	//		sqlStr += "(?, ?),"
+	//		vals = append(vals, project_id, val)
+	//	}
+	//	//default:
+	//	//      c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "cannot determine values
+	//}
+
+	//// might have to set expected application type
+	//// in this case 'request type' =  application/json
+	//if ct_hdr == "application/json" {
+
+	// expected type matched, apply filter, update data, continue, hand off
+	//var postCustomHandle map[string]interface{}
+	var postCustomHandle interface{}
+	jsnErr := json.NewDecoder(ReqBody).Decode(&postCustomHandle)
+	if jsnErr == nil {
+		//switch t := postCustomHandle.(type) {
+		//case map[string]interface{}:
+		//	for k, v := range t {
+		//		fmt.Println(k)
+		//		fmt.Println(v)
+		//		////json_str = "\t\"" + k + "\": {\n\t\t\"type\": \"string\"\n\t},\n"
+		//		//json_str = "\t\"" + k + "\": {\n\t\t\"type\": \"string\","
+		//		//if v == "0" || v == float64(0) {
+		//		//	json_str = "\t\"" + k + "\": {\n\t\t\"type\": \"number\","
+		//		//}
+		//		//buffer.WriteString(json_str)
+		//		//json_str = "\n\t\t\"title\": \"" + k + "\",\n\t\t//\"required\": \"true\","
+		//		//buffer.WriteString(json_str)
+		//		//json_str = "\n\t\t//\"enum\": \"[\"A\", \"B\", \"C\"],\n\t"
+		//		////"enum":["alt-jazz", "alt-jazz2", "alt-jazz3"],
+		//		//buffer.WriteString(json_str + "},\n")
 		//	}
-		//} else {
-		//	cglog.CGlog.Println(c.Request.Body)
-		//	cglog.CGlog.Printf("%T", c.Request.Body)
-		//	cglog.CGlog.Print(jsnErr)
-		//	c.JSON(http.StatusBadRequest, gin.H{"message": "error handling parameters"})
-		//	return
 		//}
 
+		//    project.Name = html.EscapeString(project.Name)
+		//map[updated_by:537 updated_at:1.480536294e+09
+		//name:Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs aw354
+		//description:Iñtërnâtiônàlizætiøn project  asdfasdf aw35as
+		//status:Recording
+		//key:E
+		//created_by:537
+		//created_at:1.474448233e+09
+		//id:1
+		//genre:7
+		//sub_genre:77
+		//bpm:117
+		//visibility:Public]
+		//[GIN-debug] [WARNING] Headers were already written.
+		//Wanted to override status code 400 with 404
+		fmt.Printf("%v", postCustomHandle)
+		//return c
+		//(c *gin.Context)
+		//var err = errors.New
+		// see https://golang.org/src/net/http/request.go
+		// func NewRequest(method, urlStr string, body io.Reader) (*Request, error) {
+		// XXX TODO create a new ReqBody
+
+		c.Request, jsnErr = http.NewRequest(ReqMethod, ReqURL.String(), ReqBody)
+		c.Request.Header = ReqHeader
+
+		if jsnErr == nil {
+			// how to upload global gin c.Content?
+			fmt.Println("HEREq")
+
+			hdr := c.Request.Header
+			fmt.Printf("%v Header\n", hdr)
+		}
+
+	} else {
+		fmt.Println("Failed")
 	}
-	//return errors.New("Filter error")
+	//if jsnErr == nil {
+	//        // DESC table to get fields?
+	//	proj_id := postCustomHandle["project_id"]
+	//	talent_ids := postCustomHandle["talent_ids"]
+	//	if proj_id == nil || talent_ids == nil {
+	//		c.JSON(http.StatusBadRequest, gin.H{"message": "required paramaters cannot be empty."})
+	//		return
+	//	} else {
+	//		//project_id := postCustomHandle["proj_id"].(string)
+	//		project_id = proj_id.(string)
+	//	}
+	//} else {
+	//	cglog.CGlog.Println(c.Request.Body)
+	//	cglog.CGlog.Printf("%T", c.Request.Body)
+	//	cglog.CGlog.Print(jsnErr)
+	//	c.JSON(http.StatusBadRequest, gin.H{"message": "error handling parameters"})
+	//	return
+	//}
+
+	//}
+	////return errors.New("Filter error")
 	return nil
 
 }
 
-func ConstructRequest(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println(r.Method, "-", r.RequestURI)
-		cookie, _ := r.Cookie("username")
-		if cookie != nil {
-			//Add data to context
-			ctx := context.WithValue(r.Context(), "Username", cookie.Value)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		} else {
-			next.ServeHTTP(w, r)
-		}
-	})
-}
+//func ConstructRequest(next http.Handler) http.Handler {
+//	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//		fmt.Println(r.Method, "-", r.RequestURI)
+//		cookie, _ := r.Cookie("username")
+//		if cookie != nil {
+//			//Add data to context
+//			ctx := context.WithValue(r.Context(), "Username", cookie.Value)
+//			next.ServeHTTP(w, r.WithContext(ctx))
+//		} else {
+//			next.ServeHTTP(w, r)
+//		}
+//	})
+//}
 
 // func AddContext(next http.Handler) http.Handler {
 //   return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
