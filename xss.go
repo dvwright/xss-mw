@@ -10,9 +10,9 @@ import (
 	"encoding/json"
 	"fmt"
 	//"html"
-	"io"
-	"io/ioutil"
-	"net/url"
+	//"io"
+	//"io/ioutil"
+	//"net/url"
 )
 
 // GinXSSMiddleware provides an 'auto' remove XSS malicious from all submitted user input.
@@ -221,7 +221,7 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	ReqHeader := c.Request.Header
 	fmt.Printf("%v Header\n", ReqHeader)
 
-	// https://golang.org/pkg/net/http/#Request
+	//// https://golang.org/pkg/net/http/#Request
 
 	ReqMethod := c.Request.Method
 	fmt.Printf("%v Method\n", ReqMethod)
@@ -235,25 +235,29 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	ct_hdr := c.Request.Header.Get("Content-Type") // [application/json]
 	fmt.Printf("%v\n", ct_hdr)                     // -> application/json
 
-	var reader io.Reader = ReqBody
-	b, e := ioutil.ReadAll(reader)
-	if e != nil {
-		fmt.Println("Error")
-	}
-	vs, perr := url.ParseQuery(string(b))
-	if perr != nil {
-		fmt.Println("Error")
-	}
-	// url.Values{"{\"id\":1,\"name\":\"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs\",\"description\":\"Iñtërnâtiônàlizætiøn project  asdfasdf\",\"status\":\"Recording\",\"genre\":\"7\",\"sub_genre\":\"77\",\"bpm\":\"117\",\"key\":\"E\",\"visibility\":\"Public\",\"created_by\":537,\"created_at\":1474448233,\"updated_by\":537,\"updated_at\":1480613545}":[]string{""}}map[{"id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description":"Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","genre":"7","sub_genre":"77","bpm":"117","key":"E","visibility":"Public","created_by":537,"created_at":1474448233,"updated_by":537,"updated_at":1480613545}
-	fmt.Printf("%#v", vs)
-	fmt.Printf("%v", vs)
-	// https://golang.org/src/net/http/request.go
-	for k, vvs := range vs {
-		for _, value := range vvs {
-			//dst.Add(k, value)
-			fmt.Println(k, value)
-		}
-	}
+	////var reader io.Reader = ReqBody
+	//var reader io.Reader = c.Request.Body
+	//b, e := ioutil.ReadAll(reader)
+	//if e != nil {
+	//	fmt.Println("Error")
+	//}
+	//vs, perr := url.ParseQuery(string(b))
+	//if perr != nil {
+	//	fmt.Println("Error")
+	//}
+	//// url.Values{"{\"id\":1,\"name\":\"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs\",\"description\":\"Iñtërnâtiônàlizætiøn project  asdfasdf\",\"status\":\"Recording\",\"genre\":\"7\",\"sub_genre\":\"77\",\"bpm\":\"117\",\"key\":\"E\",\"visibility\":\"Public\",\"created_by\":537,\"created_at\":1474448233,\"updated_by\":537,\"updated_at\":1480613545}":[]string{""}}map[{"id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description":"Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","genre":"7","sub_genre":"77","bpm":"117","key":"E","visibility":"Public","created_by":537,"created_at":1474448233,"updated_by":537,"updated_at":1480613545}
+	////fmt.Printf("%#v", vs)
+	////fmt.Printf("%v", vs)
+	//// https://golang.org/src/net/http/request.go
+	////fmt.Printf("%#v\n\n\n", vs)
+	//for k, vvs := range vs {
+	//	fmt.Println(k)
+	//	fmt.Println(vvs)
+	//	//for _, value := range vvs {
+	//	//	//dst.Add(k, value)
+	//	//	fmt.Println(value)
+	//	//}
+	//}
 
 	//func copyValues(dst, src url.Values) {
 	//        for k, vs := range src {
@@ -287,22 +291,23 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 
 			m := jsonBod.(map[string]interface{})
 			for k, v := range m {
-				switch vv := v.(type) {
-				case string:
-					fmt.Println(k, "is string", vv)
-				case int:
-					fmt.Println(k, "is int", vv)
-				case int64:
-					fmt.Println(k, "is int64", vv)
-				case []interface{}:
-					fmt.Println(k, "is an array:")
-					for i, u := range vv {
-						fmt.Println(i, u)
-					}
-				default:
-					fmt.Println(k, "is of a type I don't know how to handle")
-					fmt.Println("%#v", vv)
-				}
+				fmt.Println(k, v)
+				//switch vv := v.(type) {
+				//case string:
+				//	fmt.Println(k, "is string", vv)
+				//case int:
+				//	fmt.Println(k, "is int", vv)
+				//case int64:
+				//	fmt.Println(k, "is int64", vv)
+				//case []interface{}:
+				//	fmt.Println(k, "is an array:")
+				//	for i, u := range vv {
+				//		fmt.Println(i, u)
+				//	}
+				//default:
+				//	fmt.Println(k, "is of a type I don't know how to handle")
+				//	fmt.Println("%#v", vv)
+				//}
 			}
 			c.Request, jsnErr = http.NewRequest(ReqMethod, ReqURL.String(), ReqBody)
 			c.Request.Header = ReqHeader
@@ -312,7 +317,7 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 		}
 
 	}
-	////return errors.New("Filter error")
+	//return errors.New("Filter error")
 	return nil
 
 }
