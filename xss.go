@@ -11,18 +11,18 @@ import (
 	"encoding/json"
 	"fmt"
 	//"html"
-	//"io"
+	"io"
 	"io/ioutil"
 	//"net/url"
 	//"os"
 	"strconv"
 )
 
-//type nopCloser struct {
-//	io.Reader
-//}
-//
-//func (nopCloser) Close() os.Error { return nil }
+type nopCloser struct {
+	io.Reader
+}
+
+func (nopCloser) Close() error { return nil }
 
 // GinXSSMiddleware provides an 'auto' remove XSS malicious from all submitted user input.
 // e.g. POST and PUT
@@ -244,9 +244,38 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	ct_hdr := c.Request.Header.Get("Content-Type") // [application/json]
 	fmt.Printf("%v\n", ct_hdr)                     // -> application/json
 
+	cts_len := c.Request.Header.Get("Content-Length")
+	fmt.Printf("%v\n", cts_len)
+	ct_len, _ := strconv.Atoi(cts_len)
+
+	////b, _ := ioutil.ReadAll(ReqBody)
+	//////b[42] = 99
+	////fmt.Printf("ReqBody Pre: %v\n", ReqBody)
+	////fmt.Printf("ReqBody Pre: %#v\n", ReqBody)
+	////fmt.Printf("b: %v\n", b)
+	////fmt.Printf("b: %#v\n", b)
+	////fmt.Printf("b: %s\n", b)
+
+	////bf := `{"genre":"7","created_at":88812334,"updated_by":534,"updated_at":12344,"bpm":"117","key":"E","visibility": "Public","id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description": "Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","sub_genre":"77","created_by":534}`
+	//////// Copy headers
+	//////for k, v := range response.Header {
+	//////	w.Header()[k] = v
+	//////}
+
+	//////c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+	////c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bf)))
+
+	////fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
+	////fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
+
+	///newBody := "New Body"
+	///r.Body = ioutil.NopCloser(strings.NewReader(newBody))
+	///r.ContentLength = int64(len(newBody))
+	//c.Request.Header.Set("Content-Length") = int64(len(newBody))
+
 	//// https://golang.org/src/net/http/request.go
 	// set expected application type
-	if ct_hdr == "application/json" {
+	if ct_hdr == "application/json" && ct_len > 1 && (ReqMethod == "POST" || ReqMethod == "PUT") {
 		var jsonBod interface{}
 		jsnErr := json.NewDecoder(ReqBody).Decode(&jsonBod)
 		if jsnErr == nil {
@@ -299,7 +328,13 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 					//buff.WriteString(strconv.Itoa(vv))
 				}
 				buff.WriteString(`",`)
+				fmt.Printf("Buf Str: %s\n", buff)
 			}
+			buff.WriteString(`}`)
+			fmt.Printf("Buf Str: %s\n", buff.String())
+
+			bf := `{"genre":"7","created_at":88812334,"updated_by":534,"updated_at":12344,"bpm":"117","key":"E","visibility": "Public","id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description": "Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","sub_genre":"77","created_by":534}`
+
 			//buff = buff[0 : len(buff)-1]
 
 			//json.NewEncoder(b).Encode(u)
@@ -311,8 +346,24 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 			//c.Request.Body = bytes.NewBufferString(jsonBod)
 
 			// req.Body = ioutil.NopCloser(bytes.NewReader([]byte("foo")))
-			//c.Request.Body = nopCloser{bytes.NewBufferString(buff.String())}
-			c.Request.Body = ioutil.NopCloser(bytes.NewReader([]byte(buff.String())))
+			fmt.Printf("ReqBody Pre: %v\n", ReqBody)
+			fmt.Printf("ReqBody Pre: %#v\n", ReqBody)
+			//c.Request.Body = ioutil.NopCloser(bytes.NewReader([]byte(bf.String())))
+			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bf)))
+			fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
+			fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
+
+			b, _ := ioutil.ReadAll(c.Request.Body)
+			//b[42] = 99
+			fmt.Printf("B: %#v\n", b)
+			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+			fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
+			fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
+
+			///newBody := "New Body"
+			///r.Body = ioutil.NopCloser(strings.NewReader(newBody))
+			///r.ContentLength = int64(len(newBody))
+			//c.Request.Header.Set("Content-Length") = int64(len(newBody))
 
 		} else {
 			fmt.Println("Failed")
