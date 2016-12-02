@@ -1,5 +1,9 @@
 package xss
 
+// XXX TODO
+// bluemonday!
+// also have option to accept XSS into the database and filter it out on display
+
 import (
 	//"errors"
 	"github.com/gin-gonic/gin"
@@ -12,18 +16,18 @@ import (
 	"fmt"
 	"html"
 	//"html"
-	"io"
+	//"io"
 	"io/ioutil"
 	//"net/url"
 	//"os"
 	"strconv"
 )
 
-type nopCloser struct {
-	io.Reader
-}
-
-func (nopCloser) Close() error { return nil }
+//type nopCloser struct {
+//	io.Reader
+//}
+//
+//func (nopCloser) Close() error { return nil }
 
 // GinXSSMiddleware provides an 'auto' remove XSS malicious from all submitted user input.
 // e.g. POST and PUT
@@ -275,8 +279,9 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 					buff.WriteString(`"`)
 					// TODO
 					// XXX need to escape [ "`{},: ]
-					buff.WriteString(vv)
-					//buff.WriteString(html.EscapeString(vv))
+					//buff.WriteString(vv)
+					// XXX to do  bluemonday!
+					buff.WriteString(html.EscapeString(vv))
 					buff.WriteString(`",`)
 				case float64:
 					fmt.Println(k, "is float", vv)
@@ -284,6 +289,9 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 					buff.WriteString(html.EscapeString(strconv.FormatFloat(vv, 'g', 0, 64)))
 					buff.WriteString(`,`)
 				default:
+					// XXX talent_ids [1] is an array of values (handle it!)
+					// talent_ids is of a type I don't know how to handle
+
 					fmt.Println(k, "is of a type I don't know how to handle")
 					fmt.Println("%#v", vv)
 					//buff.WriteString(fmt.Sprintf("%v", vv))
@@ -294,10 +302,28 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 			buff.Truncate(buff.Len() - 1) // remove last ','
 			buff.WriteString(`}`)
 
+			////encBuf, merr := json.Marshal(buff.String(), encOpts{quoted: true})
+			//encBuf, merr := json.Marshal(buff.String())
+			//if merr != nil {
+			//	fmt.Printf("%v", merr)
+			//}
+			//////fmt.Println(string(data))
+			////c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(encBuf))))
+
+			bodOut := buff.String()
+
+			enc := json.NewEncoder(ioutil.Discard)
+			if merr := enc.Encode(&bodOut); merr != nil {
+				fmt.Printf("%v", merr)
+			}
+
 			fmt.Printf("ReqBody PRE: %v\n", ReqBody)
 			//bf := `{"genre":"7","created_at":88812334,"updated_by":534,"updated_at":12344,"bpm":"117","key":"E","visibility": "Public","id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description": "Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","sub_genre":"77","created_by":534}`
 			//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bf)))
-			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buff.String())))
+			//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buff.String())))
+			//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(encBuf))))
+			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bodOut)))
+
 			fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
 			fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
 		} else {
