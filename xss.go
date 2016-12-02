@@ -227,25 +227,25 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	//fmt.Print(derr)
 	//fmt.Printf("%q", dump)
 
-	ReqHeader := c.Request.Header
-	fmt.Printf("%v Header\n", ReqHeader)
+	//ReqHeader := c.Request.Header
+	//fmt.Printf("%v Header\n", ReqHeader)
 
 	//// https://golang.org/pkg/net/http/#Request
 
 	ReqMethod := c.Request.Method
-	fmt.Printf("%v Method\n", ReqMethod)
+	//fmt.Printf("%v Method\n", ReqMethod)
 
-	ReqURL := c.Request.URL
-	fmt.Printf("%v URL\n", ReqURL)
+	//ReqURL := c.Request.URL
+	//fmt.Printf("%v URL\n", ReqURL)
 
 	ReqBody := c.Request.Body
-	fmt.Printf("%v URL\n", ReqBody)
+	//fmt.Printf("%v URL\n", ReqBody)
 
 	ct_hdr := c.Request.Header.Get("Content-Type") // [application/json]
-	fmt.Printf("%v\n", ct_hdr)                     // -> application/json
+	//fmt.Printf("%v\n", ct_hdr)                     // -> application/json
 
 	cts_len := c.Request.Header.Get("Content-Length")
-	fmt.Printf("%v\n", cts_len)
+	//fmt.Printf("%v\n", cts_len)
 	ct_len, _ := strconv.Atoi(cts_len)
 
 	////b, _ := ioutil.ReadAll(ReqBody)
@@ -277,7 +277,10 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 	// set expected application type
 	if ct_hdr == "application/json" && ct_len > 1 && (ReqMethod == "POST" || ReqMethod == "PUT") {
 		var jsonBod interface{}
-		jsnErr := json.NewDecoder(ReqBody).Decode(&jsonBod)
+		//jsnErr := json.NewDecoder(ReqBody).Decode(&jsonBod)
+		d := json.NewDecoder(ReqBody)
+		d.UseNumber()
+		jsnErr := d.Decode(&jsonBod)
 		if jsnErr == nil {
 			////map[visibility:Public created_by:537 id:1 name:Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs status:Recording genre:7 bpm:117 key:E updated_by:537 updated_at:1.480613545e+09 description:Iñtërnâtiônàlizætiøn project  asdfasdf sub_genre:77 created_at:1.474448233e+09]HEREq
 			////map[Connection:[keep-alive] Content-Length:[314] Origin:[http://local.hubtones.com] Authorization:[Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE0ODA3OTM0ODIsImlkIjoiVGVzdCBVc2VyIMKpIiwib3JpZ19pYXQiOjE0ODA0MDc2MzEsInVzZXJfaWQiOjUzNywidXNlcm5hbWUiOiJUZXN0IFVzZXIgwqkifQ.2iP7bAB9i2v5yUAxUPOXyXKTy249UxOeipClPA9Qj34] Content-Type:[application/json] Accept-Encoding:[gzip, deflate, sdch] Accept:[application/json] User-Agent:[Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36] Referer:[http://local.hubtones.com/project/1/edit] Accept-Language:[en-US,en;q=0.8]] Header
@@ -303,62 +306,46 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 				buff.WriteString(`"`)
 				buff.WriteString(k)
 				buff.WriteString(`":`)
-				buff.WriteString(`"`)
 				//buff.WriteString(v.(string))
 				//buff.WriteString(`",`)
 
+				// FYI, json is string or float
 				switch vv := v.(type) {
 				case string:
 					fmt.Println(k, "is string", vv)
+					buff.WriteString(`"`)
 					buff.WriteString(vv)
-				case int:
-					fmt.Println(k, "is int", vv)
-					buff.WriteString(strconv.Itoa(vv))
-				case int64:
-					fmt.Println(k, "is int64", vv)
-					//buff.WriteString(strconv.Itoa(vv))
-				case []interface{}:
-					fmt.Println(k, "is an array:")
-					for i, u := range vv {
-						fmt.Println(i, u)
-					}
+					buff.WriteString(`",`)
+				case float64:
+					fmt.Println(k, "is float", vv)
+					buff.WriteString(strconv.FormatFloat(vv, 'g', 0, 64))
+					buff.WriteString(`,`)
 				default:
 					fmt.Println(k, "is of a type I don't know how to handle")
 					fmt.Println("%#v", vv)
-					//buff.WriteString(strconv.Itoa(vv))
+					buff.WriteString(fmt.Sprintf("%v", vv))
+					buff.WriteString(`,`)
 				}
-				buff.WriteString(`",`)
-				fmt.Printf("Buf Str: %s\n", buff)
 			}
+			buff.Truncate(buff.Len() - 1) // remove last ','
 			buff.WriteString(`}`)
-			fmt.Printf("Buf Str: %s\n", buff.String())
 
-			bf := `{"genre":"7","created_at":88812334,"updated_by":534,"updated_at":12344,"bpm":"117","key":"E","visibility": "Public","id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description": "Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","sub_genre":"77","created_by":534}`
+			//bf := `{"genre":"7","created_at":88812334,"updated_by":534,"updated_at":12344,"bpm":"117","key":"E","visibility": "Public","id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description": "Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","sub_genre":"77","created_by":534}`
 
-			//buff = buff[0 : len(buff)-1]
-
-			//json.NewEncoder(b).Encode(u)
-			//fmt.Printf("%v", jsonBod)
-			//c.Request, jsnErr = http.NewRequest(ReqMethod, ReqURL.String(), ReqBody)
-			//c.Request.Header = ReqHeader
-			//c.Request.Body = strings.NewReader(data.Encode())
-			//c.Request.Body = strings.NewReader(jsonBod)
-			//c.Request.Body = bytes.NewBufferString(jsonBod)
-
-			// req.Body = ioutil.NopCloser(bytes.NewReader([]byte("foo")))
 			fmt.Printf("ReqBody Pre: %v\n", ReqBody)
 			fmt.Printf("ReqBody Pre: %#v\n", ReqBody)
 			//c.Request.Body = ioutil.NopCloser(bytes.NewReader([]byte(bf.String())))
-			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bf)))
+			//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bf)))
+			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buff.String())))
 			fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
 			fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
 
-			b, _ := ioutil.ReadAll(c.Request.Body)
-			//b[42] = 99
-			fmt.Printf("B: %#v\n", b)
-			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(b))
-			fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
-			fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
+			//b, _ := ioutil.ReadAll(c.Request.Body)
+			////b[42] = 99
+			//fmt.Printf("B: %#v\n", b)
+			//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+			//fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
+			//fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
 
 			///newBody := "New Body"
 			///r.Body = ioutil.NopCloser(strings.NewReader(newBody))
