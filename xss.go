@@ -1,8 +1,16 @@
 package xss
 
-// XXX TODO
-// bluemonday!
-// also have option to accept XSS into the database and filter it out on display
+// XssMw provides an auto remove malicious XSS from all submitted user input.
+// The method is applied on all POST and PUT Requests only.
+
+// it's highly configurable and uses HTML sanitizer https://github.com/microcosm-cc/bluemonday
+// for filtering.
+// TODO - how to expose bluemonday?
+
+// TODO
+// add option to accept XSS on http Request and apply filter on Response
+// - in other words - data would be stored in the database as it was submitted
+// - data integrity, XSS exploits and all
 
 import (
 	//"errors"
@@ -14,21 +22,17 @@ import (
 	//"time"
 	"encoding/json"
 	"fmt"
-	"html"
 	//"html"
 	//"io"
 	"io/ioutil"
 	//"net/url"
 	//"os"
+	"github.com/microcosm-cc/bluemonday"
 	"strconv"
 )
 
-// GinXSSMiddleware provides an 'auto' remove XSS malicious from all submitted user input.
-// e.g. POST and PUT
-// it's highly configurable.
-// uses HTML sanitizer https://github.com/microcosm-cc/bluemonday
-
-type GinXSSMiddleware struct {
+// TODO - add features/configuration
+type XssMw struct {
 	// List of tables to not filter any fields on
 	TableWhitelist []byte
 
@@ -46,8 +50,8 @@ type GinXSSMiddleware struct {
 
 }
 
-// MiddlewareFunc makes GinXSSMiddleware implement the Middleware interface.
-func (mw *GinXSSMiddleware) MiddlewareFunc() gin.HandlerFunc {
+// makes XssMw implement the Gin Middleware interface.
+func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 	//if err := mw.MiddlewareInit(); err != nil {
 	//	return func(c *gin.Context) {
 	//		mw.unauthorized(c, http.StatusInternalServerError, err.Error())
@@ -56,14 +60,14 @@ func (mw *GinXSSMiddleware) MiddlewareFunc() gin.HandlerFunc {
 	//}
 
 	return func(c *gin.Context) {
-		mw.middlewareImpl(c)
+		mw.callRemoveXss(c)
 		return
 	}
 }
 
-func (mw *GinXSSMiddleware) middlewareImpl(c *gin.Context) {
+func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	// remove xss
-	err := mw.filterData(c)
+	err := mw.XssRemove(c)
 
 	if err != nil {
 		c.Abort()
@@ -74,7 +78,7 @@ func (mw *GinXSSMiddleware) middlewareImpl(c *gin.Context) {
 }
 
 // Remove XSS
-func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
+func (mw *XssMw) XssRemove(c *gin.Context) error {
 	//dump, derr := httputil.DumpRequest(c.Request, true)
 	//fmt.Print(derr)
 	//fmt.Printf("%q", dump)
@@ -112,9 +116,12 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 			var buff bytes.Buffer
 			buff.WriteString(`{`)
 
+			//p := bluemonday.UGCPolicy()
+			p := bluemonday.StrictPolicy()
+
 			m := jsonBod.(map[string]interface{})
 			for k, v := range m {
-				fmt.Println(k, v)
+				//fmt.Println(k, v)
 				buff.WriteString(`"`)
 				buff.WriteString(k)
 				buff.WriteString(`":`)
@@ -122,27 +129,28 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 				// FYI, json is string or float
 				switch vv := v.(type) {
 				case string:
-					fmt.Println(k, "is string", vv)
+					//fmt.Println(k, "is string", vv)
 					buff.WriteString(`"`)
-					// TODO
-					// XXX need to escape [ "`{},: ]
+					// TODO  need to escape [ "`{},: ]
 					//buff.WriteString(vv)
-					// XXX to do  bluemonday!
-					buff.WriteString(html.EscapeString(vv))
+					//buff.WriteString(html.EscapeString(vv))
+					buff.WriteString(p.Sanitize(vv))
 					buff.WriteString(`",`)
 				case float64:
 					fmt.Println(k, "is float", vv)
 					//buff.WriteString(strconv.FormatFloat(vv, 'g', 0, 64))
-					buff.WriteString(html.EscapeString(strconv.FormatFloat(vv, 'g', 0, 64)))
+					//buff.WriteString(html.EscapeString(strconv.FormatFloat(vv, 'g', 0, 64)))
+					buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)))
 					buff.WriteString(`,`)
 				default:
 					// XXX talent_ids [1] is an array of values (handle it!)
 					// talent_ids is of a type I don't know how to handle
 
-					fmt.Println(k, "is of a type I don't know how to handle")
-					fmt.Println("%#v", vv)
+					//fmt.Println(k, "is of a type I don't know how to handle")
+					//fmt.Println("%#v", vv)
 					//buff.WriteString(fmt.Sprintf("%v", vv))
-					buff.WriteString(html.EscapeString(fmt.Sprintf("%v", vv)))
+					//buff.WriteString(html.EscapeString(fmt.Sprintf("%v", vv)))
+					buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vv)))
 					buff.WriteString(`,`)
 				}
 			}
@@ -157,10 +165,7 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 			}
 
 			fmt.Printf("ReqBody PRE: %v\n", ReqBody)
-			//bf := `{"genre":"7","created_at":88812334,"updated_by":534,"updated_at":12344,"bpm":"117","key":"E","visibility": "Public","id":1,"name":"Project ß£áçkqùë Jâçqùë ¥  - value asdfasdfadfs","description": "Iñtërnâtiônàlizætiøn project  asdfasdf","status":"Recording","sub_genre":"77","created_by":534}`
-			//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bf)))
 			//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buff.String())))
-			//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(encBuf))))
 			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bodOut)))
 
 			fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
@@ -170,11 +175,11 @@ func (mw *GinXSSMiddleware) filterData(c *gin.Context) error {
 		}
 
 	}
-	//return errors.New("Filter error")
+	//return errors.New("XSS remaval error")
 	return nil
-
 }
 
+// XXX will this help us create filter on Response functioality?
 //func ConstructRequest(next http.Handler) http.Handler {
 //	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 //		fmt.Println(r.Method, "-", r.RequestURI)

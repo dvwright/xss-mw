@@ -1,8 +1,7 @@
 package xss
 
 // XXX TODO
-// bluemonday!
-// also have option to accept XSS into the database and filter it out on display
+// filter xss out on display
 
 import (
 	//"errors"
@@ -35,7 +34,7 @@ const (
 	defaultStatus = 200
 )
 
-func XSSResponseHandler() gin.HandlerFunc {
+func FilterXss() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		fmt.Println("Content-Type")
 		fmt.Println("%#v", c)
