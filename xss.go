@@ -156,25 +156,33 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 
 			switch jbt := jsonBod.(type) {
 			case []interface{}:
+				// XXX how to build up type // []interface {} ?
+				// append ?
+				vals := []interface{}{}
 				for i, n := range jbt {
 					fmt.Printf("Item: %v= %v\n", i, n)
+					xmj := n.(map[string]interface{})
+					buff := BuildJsonBody(xmj)
+					vals = append(vals, n, buff)
+				}
+				// cannot use vals (type []interface {}) as type bytes.Buffer in argument to SetRequestBody
+				//err := SetRequestBody(c, vals)
+				// XXX how to iterate and collect and pass as buff?
+				err := SetRequestBody(c, vals)
+				if err != nil {
+					fmt.Printf("\n\n\nSet request body failed!\n\n\n")
 				}
 			case map[string]interface{}:
 				fmt.Printf("\n\n\nMOOOOOO\n\n\n")
+				xmj := jsonBod.(map[string]interface{})
+				buff := BuildJsonBody(xmj)
+				err := SetRequestBody(c, buff)
+				if err != nil {
+					fmt.Printf("\n\n\nSet request body failed!\n\n\n")
+				}
 			default:
 				//var r = reflect.TypeOf(jbt)
-				//fmt.Printf("Handle this:%v\n", r)
-			}
-
-			// build response - method call
-			// takes arg map[string]interface{} and a bluemonday Policy
-			// returns bytes.Buffer
-			xmj := jsonBod.(map[string]interface{})
-			buff := BuildJsonBody(xmj)
-
-			err := SetRequestBody(c, buff)
-			if err != nil {
-				fmt.Printf("\n\n\nSet request body failed!\n\n\n")
+				fmt.Printf("Unknown Type!:%v\n", r)
 			}
 
 		} else {
@@ -186,7 +194,11 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	return nil
 }
 
+// encode json string to JSON
+// set http request body to json string
 func SetRequestBody(c *gin.Context, buff bytes.Buffer) error {
+	// XXX clean up - probably don't need to convert to string
+	// only to convert back to NewBuffer for NopCloser
 	bodOut := buff.String()
 
 	enc := json.NewEncoder(ioutil.Discard)
@@ -204,7 +216,10 @@ func SetRequestBody(c *gin.Context, buff bytes.Buffer) error {
 	return nil
 }
 
-//func (xmj XssMwJson) BuildJsonBody(bytes.Buffer) {
+// TODO change method signature - func (xmj XssMwJson) BuildJsonBody(bytes.Buffer) {
+// build response - method call
+// takes arg map[string]interface{} and a bluemonday Policy
+// returns bytes.Buffer
 func BuildJsonBody(xmj XssMwJson) bytes.Buffer {
 
 	var buff bytes.Buffer
