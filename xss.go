@@ -91,8 +91,17 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	ReqMethod := c.Request.Method
 	//fmt.Printf("%v Method\n", ReqMethod)
 
-	//ReqURL := c.Request.URL
+	ReqURL := c.Request.URL
 	//fmt.Printf("%v URL\n", ReqURL)
+
+	//// XXX doesn't work - all edit have some referrer
+	//// XXX be able to skip some end points (referrer - url)
+	//// URL's to skip processing on
+	ct_rfr := c.Request.Header.Get("Referer")
+	fmt.Printf("%v\n", ct_rfr)
+	//if string(ct_rfr) == "http://local.hubtones.com/project/1/edit" {
+	//	return nil
+	//}
 
 	ReqBody := c.Request.Body
 	//fmt.Printf("%v URL\n", ReqBody)
@@ -107,6 +116,19 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	// https://golang.org/src/net/http/request.go
 	// set expected application type
 	if ct_hdr == "application/json" && ct_len > 1 && (ReqMethod == "POST" || ReqMethod == "PUT") {
+
+		// URL's TO SKIP
+		// will have to be a regex or index of in reality  -
+		// XXX we wont know id value (at end)
+		if ReqURL.String() == "/api/v1/project_talent_wanted/1" {
+			fmt.Printf("Skipping URL: %v\n", ReqURL)
+			return nil
+		}
+		if ReqURL.String() == "/api/v1/project_media/1" {
+			fmt.Printf("Skipping URL: %v\n", ReqURL)
+			return nil
+		}
+
 		var jsonBod interface{}
 		//jsnErr := json.NewDecoder(ReqBody).Decode(&jsonBod)
 		d := json.NewDecoder(ReqBody)
@@ -121,6 +143,11 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 
 			m := jsonBod.(map[string]interface{})
 			for k, v := range m {
+				// to implement fields to skip
+				if string(k) == "fqdn_url" {
+					continue
+				}
+				//fmt.Println(k, v)
 				//fmt.Println(k, v)
 				buff.WriteString(`"`)
 				buff.WriteString(k)
@@ -137,17 +164,19 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 					buff.WriteString(p.Sanitize(vv))
 					buff.WriteString(`",`)
 				case float64:
-					fmt.Println(k, "is float", vv)
+					//fmt.Println(k, "is float", vv)
 					//buff.WriteString(strconv.FormatFloat(vv, 'g', 0, 64))
 					//buff.WriteString(html.EscapeString(strconv.FormatFloat(vv, 'g', 0, 64)))
 					buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)))
 					buff.WriteString(`,`)
 				default:
+					// XXX need to support json array sent i.e. [1 4 8]
 					// XXX talent_ids [1] is an array of values (handle it!)
 					// talent_ids is of a type I don't know how to handle
 
-					//fmt.Println(k, "is of a type I don't know how to handle")
-					//fmt.Println("%#v", vv)
+					fmt.Println(k, "is of a type I don't know how to handle")
+					fmt.Println("%#v", vv)
+					fmt.Sprintf("%v", vv)
 					//buff.WriteString(fmt.Sprintf("%v", vv))
 					//buff.WriteString(html.EscapeString(fmt.Sprintf("%v", vv)))
 					buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vv)))
