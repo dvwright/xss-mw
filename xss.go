@@ -157,7 +157,7 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 			case []interface{}:
 				var multiRec bytes.Buffer
 				multiRec.WriteString(`[`)
-				for i, n := range jbt {
+				for _, n := range jbt {
 					//fmt.Printf("Item: %v= %v\n", i, n)
 					xmj := n.(map[string]interface{})
 					buff := ApplyXssPolicy(xmj)
