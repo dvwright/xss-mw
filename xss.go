@@ -1,5 +1,9 @@
 package xss
 
+// MIT license
+// Author david_v_wright@yahoo.com
+//
+
 // XssMw provides an auto remove malicious XSS from all submitted user input.
 // The method is applied on all POST and PUT Requests only.
 
@@ -12,22 +16,19 @@ package xss
 // - in other words - data would be stored in the database as it was submitted
 // - data integrity, XSS exploits and all
 
+// NOTE: This is Beta level code at best and could be improved and speed ed up
+
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	//"net/http/httputil" // debugging
 	//"reflect" // debugging type
-	//"net/http"
-	//"strings"
 	"bytes"
-	//"time"
 	"encoding/json"
 	"fmt"
 	//"html"
-	//"io"
 	"io/ioutil"
 	//"net/url"
-	//"os"
 	"github.com/microcosm-cc/bluemonday"
 	"strconv"
 )
@@ -74,7 +75,23 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 }
 
 // NOTE: This middleware currently only supports on Content-Type = application/json
+
 // only applied if http Request Method	"POST" or "PUT"
+// removes xss of policy on 3 types of request
+
+// 1st type filter - most common
+//map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
+
+// 2nd type an id with associated ids in array
+// map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
+// NOTE changes from ["1", "4", "8"] to [1,4,8]
+
+// 3rd type an array of records
+// []interface {}{map[string]interface {}{"name":"asd", "url":"/data/1/as",
+// "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
+//"fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
+// "updated_at":"1480791630", "status":"NEW",
+// "updated_by":"537", "created_at":"1480450694"},  map[string]interface {}{"name":"asd", "url":"/data/1/as", etc
 func (mw *XssMw) XssRemove(c *gin.Context) error {
 	//dump, derr := httputil.DumpRequest(c.Request, true)
 	//fmt.Print(derr)
@@ -87,9 +104,6 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 
 	ReqMethod := c.Request.Method
 	//fmt.Printf("%v Method\n", ReqMethod)
-
-	ReqURL := c.Request.URL
-	fmt.Printf("%v URL\n", ReqURL)
 
 	ReqBody := c.Request.Body
 	//fmt.Printf("%v URL\n", ReqBody)
@@ -106,7 +120,10 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	// set expected application type
 	if ct_hdr == "application/json" && ct_len > 1 && (ReqMethod == "POST" || ReqMethod == "PUT") {
 
-		//// URL's TO SKIP
+		//ReqURL := c.Request.URL
+		//fmt.Printf("%v URL\n", ReqURL)
+
+		//// TODO URL's TO SKIP
 		//// will have to be a regex or index of in reality  -
 		//// XXX we wont know id value (at end)
 		//if ReqURL.String() == "/api/v1/project_talent_wanted/1" {
@@ -122,27 +139,13 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 		d := json.NewDecoder(ReqBody)
 		d.UseNumber()
 		jsnErr := d.Decode(&jsonBod)
-		//fmt.Printf("JSON BOD: %v\n", jsonBod)
-		fmt.Printf("JSON BOD: %#v\n", jsonBod)
-		//map[string]interface {}{ - first form
-
-		// 2nd - talents
-		// JSON BOD: map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
-
-		// 3rd - media table
-		// []interface {}{map[string]interface {}{"name":"asd.mp3", "url":"/data/project/1/as.mp3",
-		// "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
-		//"fqdn_url":"<audio class", "project_id":"1", "path":"/Library/WebServer/Documents/data/project/1/.mp3",
-		// "mtype":"application/octet-stream", "updated_at":"1480791630", "ptype":"IDEA", "status":"NEW",
-		// "updated_by":"537", "created_at":"1480450694"},  map[string]interface {}{ and more
-		// XXX so essentailly []interface is like an array we need to iterate over an apply the existing code to
+		//fmt.Printf("JSON BOD: %#v\n", jsonBod)
 
 		if jsnErr == nil {
-
 			switch jbt := jsonBod.(type) {
 			// most common
 			case map[string]interface{}:
-				fmt.Printf("\n\n\nMOOOOOO\n\n\n")
+				//fmt.Printf("\n\n\n1st type\n\n\n")
 				xmj := jsonBod.(map[string]interface{})
 				buff := ApplyXssPolicy(xmj)
 				err := SetRequestBody(c, buff)
@@ -155,12 +158,12 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 				var multiRec bytes.Buffer
 				multiRec.WriteString(`[`)
 				for i, n := range jbt {
-					fmt.Printf("Item: %v= %v\n", i, n)
+					//fmt.Printf("Item: %v= %v\n", i, n)
 					xmj := n.(map[string]interface{})
 					buff := ApplyXssPolicy(xmj)
-					multiRec.WriteString(buff.String())
-					multiRec.WriteString(`,`)
+					multiRec.WriteString(buff.String() + `,`)
 				}
+				multiRec.Truncate(multiRec.Len() - 1) // remove last ','
 				multiRec.WriteString(`]`)
 				err := SetRequestBody(c, multiRec)
 				if err != nil {
@@ -168,16 +171,14 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 					return errors.New("Set Request.Body Error")
 				}
 			default:
-				//var r = reflect.TypeOf(jbt)
+				//var r = reflect.TypeOf(jbt) // debug type
 				//fmt.Printf("Unknown Type!:%v\n", r)
 				return errors.New("Unknown Content Type Received")
 			}
 
 		} else {
-			fmt.Println("Error attempting to decode JSON")
 			return errors.New("Error attempting to decode JSON")
 		}
-
 	}
 	// if here, all should be well
 	return nil
