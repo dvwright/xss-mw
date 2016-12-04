@@ -13,7 +13,7 @@ package xss
 // - data integrity, XSS exploits and all
 
 import (
-	//"errors"
+	"errors"
 	"github.com/gin-gonic/gin"
 	//"net/http/httputil" // debugging
 	//"reflect" // debugging type
@@ -55,13 +55,6 @@ type XssMwJson map[string]interface{}
 
 // makes XssMw implement the Gin Middleware interface.
 func (mw *XssMw) RemoveXss() gin.HandlerFunc {
-	//if err := mw.MiddlewareInit(); err != nil {
-	//	return func(c *gin.Context) {
-	//		mw.unauthorized(c, http.StatusInternalServerError, err.Error())
-	//		return
-	//	}
-	//}
-
 	return func(c *gin.Context) {
 		mw.callRemoveXss(c)
 		return
@@ -69,10 +62,10 @@ func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 }
 
 func (mw *XssMw) callRemoveXss(c *gin.Context) {
-	// remove xss
 	err := mw.XssRemove(c)
 
 	if err != nil {
+		fmt.Printf("%v", err)
 		c.Abort()
 		return
 	}
@@ -80,7 +73,8 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	c.Next()
 }
 
-// Remove XSS
+// NOTE: This middleware currently only supports on Content-Type = application/json
+// only applied if http Request Method	"POST" or "PUT"
 func (mw *XssMw) XssRemove(c *gin.Context) error {
 	//dump, derr := httputil.DumpRequest(c.Request, true)
 	//fmt.Print(derr)
@@ -89,7 +83,7 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	//ReqHeader := c.Request.Header
 	//fmt.Printf("%v Header\n", ReqHeader)
 
-	//// https://golang.org/pkg/net/http/#Request
+	// https://golang.org/pkg/net/http/#Request
 
 	ReqMethod := c.Request.Method
 	//fmt.Printf("%v Method\n", ReqMethod)
@@ -97,20 +91,12 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	ReqURL := c.Request.URL
 	fmt.Printf("%v URL\n", ReqURL)
 
-	//// XXX doesn't work - all edit have some referrer
-	//// XXX be able to skip some end points (referrer - url)
-	//// URL's to skip processing on
-	ct_rfr := c.Request.Header.Get("Referer")
-	fmt.Printf("%v\n", ct_rfr)
-	//if string(ct_rfr) == "http://local.hubtones.com/project/1/edit" {
-	//	return nil
-	//}
-
 	ReqBody := c.Request.Body
 	//fmt.Printf("%v URL\n", ReqBody)
 
-	ct_hdr := c.Request.Header.Get("Content-Type") // [application/json]
-	//fmt.Printf("%v\n", ct_hdr)                     // -> application/json
+	// [application/json] only supported
+	ct_hdr := c.Request.Header.Get("Content-Type")
+	//fmt.Printf("%v\n", ct_hdr)
 
 	cts_len := c.Request.Header.Get("Content-Length")
 	//fmt.Printf("%v\n", cts_len)
@@ -133,7 +119,6 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 		//}
 
 		var jsonBod interface{}
-		//jsnErr := json.NewDecoder(ReqBody).Decode(&jsonBod)
 		d := json.NewDecoder(ReqBody)
 		d.UseNumber()
 		jsnErr := d.Decode(&jsonBod)
@@ -155,42 +140,46 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 		if jsnErr == nil {
 
 			switch jbt := jsonBod.(type) {
-			case []interface{}:
-				// XXX how to build up type // []interface {} ?
-				// append ?
-				vals := []interface{}{}
-				for i, n := range jbt {
-					fmt.Printf("Item: %v= %v\n", i, n)
-					xmj := n.(map[string]interface{})
-					buff := BuildJsonBody(xmj)
-					vals = append(vals, n, buff)
-				}
-				// cannot use vals (type []interface {}) as type bytes.Buffer in argument to SetRequestBody
-				//err := SetRequestBody(c, vals)
-				// XXX how to iterate and collect and pass as buff?
-				err := SetRequestBody(c, vals)
-				if err != nil {
-					fmt.Printf("\n\n\nSet request body failed!\n\n\n")
-				}
+			// most common
 			case map[string]interface{}:
 				fmt.Printf("\n\n\nMOOOOOO\n\n\n")
 				xmj := jsonBod.(map[string]interface{})
-				buff := BuildJsonBody(xmj)
+				buff := ApplyXssPolicy(xmj)
 				err := SetRequestBody(c, buff)
 				if err != nil {
-					fmt.Printf("\n\n\nSet request body failed!\n\n\n")
+					//fmt.Println("Set request body failed")
+					return errors.New("Set Request.Body Error")
+				}
+			// a multi records request
+			case []interface{}:
+				var multiRec bytes.Buffer
+				multiRec.WriteString(`[`)
+				for i, n := range jbt {
+					fmt.Printf("Item: %v= %v\n", i, n)
+					xmj := n.(map[string]interface{})
+					buff := ApplyXssPolicy(xmj)
+					multiRec.WriteString(buff.String())
+					multiRec.WriteString(`,`)
+				}
+				multiRec.WriteString(`]`)
+				err := SetRequestBody(c, multiRec)
+				if err != nil {
+					//fmt.Println("Set request body failed")
+					return errors.New("Set Request.Body Error")
 				}
 			default:
 				//var r = reflect.TypeOf(jbt)
-				fmt.Printf("Unknown Type!:%v\n", r)
+				//fmt.Printf("Unknown Type!:%v\n", r)
+				return errors.New("Unknown Content Type Received")
 			}
 
 		} else {
-			fmt.Println("Failed")
+			fmt.Println("Error attempting to decode JSON")
+			return errors.New("Error attempting to decode JSON")
 		}
 
 	}
-	//return errors.New("XSS remaval error")
+	// if here, all should be well
 	return nil
 }
 
@@ -216,59 +205,64 @@ func SetRequestBody(c *gin.Context, buff bytes.Buffer) error {
 	return nil
 }
 
-// TODO change method signature - func (xmj XssMwJson) BuildJsonBody(bytes.Buffer) {
+// TODO change method signature - func (xmj XssMwJson) ApplyXssPolicy(bytes.Buffer) {
 // build response - method call
 // takes arg map[string]interface{} and a bluemonday Policy
 // returns bytes.Buffer
-func BuildJsonBody(xmj XssMwJson) bytes.Buffer {
+func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
+
+	fmt.Printf("JSON BOD: %#v\n", xmj)
 
 	var buff bytes.Buffer
 	buff.WriteString(`{`)
 
+	// TODO should be passed in to method
 	//p := bluemonday.UGCPolicy()
 	p := bluemonday.StrictPolicy()
 
-	//m := jsonBod.(map[string]interface{})
-	m := xmj
+	m := xmj //m := jsonBod.(map[string]interface{})
 	for k, v := range m {
-		// to implement fields to skip
-		if string(k) == "fqdn_url" {
-			continue
-		}
-		//fmt.Println(k, v)
-		//fmt.Println(k, v)
-		buff.WriteString(`"`)
-		buff.WriteString(k)
-		buff.WriteString(`":`)
 
-		// FYI, json is string or float
-		switch vv := v.(type) {
+		// TODO implement fields to skip
+		//if string(k) == "fqdn_url" {
+		//	continue
+		//}
+
+		//fmt.Println(k, v)
+
+		buff.WriteString(`"` + k + `":`)
+
+		switch vv := v.(type) { // FYI, JSON is string or float
 		case string:
-			//fmt.Println(k, "is string", vv)
-			buff.WriteString(`"`)
-			// TODO  need to escape [ "`{},: ]
-			//buff.WriteString(vv)
-			//buff.WriteString(html.EscapeString(vv))
-			buff.WriteString(p.Sanitize(vv))
-			buff.WriteString(`",`)
+			buff.WriteString(`"` + p.Sanitize(vv) + `",`)
 		case float64:
 			//fmt.Println(k, "is float", vv)
 			//buff.WriteString(strconv.FormatFloat(vv, 'g', 0, 64))
 			//buff.WriteString(html.EscapeString(strconv.FormatFloat(vv, 'g', 0, 64)))
-			buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)))
-			buff.WriteString(`,`)
+			buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)) + `,`)
 		default:
-			// XXX need to support json array sent i.e. [1 4 8]
-			// XXX talent_ids [1] is an array of values (handle it!)
-			// talent_ids is of a type I don't know how to handle
-
-			fmt.Println(k, "is of a type I don't know how to handle")
-			fmt.Println("%#v", vv)
-			fmt.Sprintf("%v", vv)
-			//buff.WriteString(fmt.Sprintf("%v", vv))
-			//buff.WriteString(html.EscapeString(fmt.Sprintf("%v", vv)))
-			buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vv)))
-			buff.WriteString(`,`)
+			switch vvv := vv.(type) {
+			// probably not very common request but I do it!
+			// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
+			case []interface{}:
+				var lst bytes.Buffer
+				lst.WriteString(`[`)
+				for _, n := range vvv {
+					//fmt.Printf("Iter: %v= %v\n", i, n)
+					//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
+					// NOTE changes from ["1", "4", "8"] to [1,4,8]
+					lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+					lst.WriteString(`,`)
+				}
+				lst.Truncate(lst.Len() - 1) // remove last ','
+				lst.WriteString(`]`)
+				buff.WriteString(lst.String())
+				buff.WriteString(`,`) // add cause expected
+			default:
+				//fmt.Println(k, "don't know how to handle")
+				//fmt.Println("%#v", vvv) ; fmt.Sprintf("%v", vvv)
+				buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)) + `,`)
+			}
 		}
 	}
 	buff.Truncate(buff.Len() - 1) // remove last ','
