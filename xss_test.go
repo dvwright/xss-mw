@@ -48,31 +48,41 @@ func newServer() *gin.Engine {
 	// TODO - filter on Response not Request
 	//r.Use(xss.FilterXss())
 
-	//r.PUT("/", func(c *gin.Context) {
-	//	//c.Header("Content-Length", strconv.Itoa(len(testResponse)))
-	//	//c.String(201, testResponse)
-	//	//c.Request
+	r.GET("/user/:id", func(c *gin.Context) {
+		fmt.Println(c.Request.Body)
+		var user User
+		fmt.Printf("%#v", user)
+		err := c.Bind(&user)
+		fmt.Printf("%#v", user)
+		if err != nil {
+			fmt.Println(err)
+			c.JSON(404, gin.H{"msg": "Bind Failed."})
+			return
+		}
+		c.JSON(200, user)
+	})
 
-	//})
-
-	//r.POST("/", func(c *gin.Context) {
-	//	message := c.PostForm("message")
-	//	nick := c.DefaultPostForm("nick", "anonymous")
-
-	//	c.JSON(200, gin.H{
-	//		"status":  "posted",
-	//		"message": message,
-	//		"nick":    nick,
-	//	})
-	//})
+	r.PUT("/user", func(c *gin.Context) {
+		fmt.Println(c.Request.Body)
+		var user User
+		fmt.Printf("%#v", user)
+		err := c.Bind(&user)
+		fmt.Printf("%#v", user)
+		if err != nil {
+			fmt.Println(err)
+			c.JSON(404, gin.H{"msg": "Bind Failed."})
+			return
+		}
+		c.JSON(200, user)
+	})
 
 	r.POST("/user", func(c *gin.Context) {
 		fmt.Println(c.Request.Body)
 		//fmt.Println(c.Header.Get("Content-Length"))
 		var user User
-		fmt.Printf("%v", user)
-		err := c.BindJSON(&user)
-		fmt.Printf("%v", user)
+		fmt.Printf("%#v", user)
+		err := c.Bind(&user)
+		fmt.Printf("%#v", user)
 		if err != nil {
 			fmt.Println(err)
 			c.JSON(404, gin.H{"msg": "Bind Failed."})
@@ -85,7 +95,7 @@ func newServer() *gin.Engine {
 }
 
 func TestKeepsValuesStripsHtmlPost(t *testing.T) {
-	//// we don't want to see log message while running tests!
+	//// we don't want to see log message while running tests
 	//log.SetOutput(ioutil.Discard)
 	//defer log.SetOutput(os.Stderr)
 
@@ -94,10 +104,9 @@ func TestKeepsValuesStripsHtmlPost(t *testing.T) {
 	user := "TestUser"
 	email := "testUser@example.com"
 	password := "!@$%^ASDF"
-	//xss := `>'>"><img src=x onerror=alert(0)>`
 	cmnt := `<img src=x onerror=alert(0)>`
-	cre_at := 1481017167
-	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + fmt.Sprintf("%d", cre_at) + `}`
+	cre_at := "1481017167"
+	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
 	req, _ := http.NewRequest("POST", "/user", bytes.NewBufferString(oParams))
 	req.Header.Add("Content-Type", "application/json")
 	// XXX leave this out, fails
@@ -105,7 +114,6 @@ func TestKeepsValuesStripsHtmlPost(t *testing.T) {
 
 	resp := httptest.NewRecorder()
 	s.ServeHTTP(resp, req)
-	//fmt.Println(resp.Body.String())
 
 	assert.Equal(t, 201, resp.Code)
 	expStr := `{
@@ -115,16 +123,118 @@ func TestKeepsValuesStripsHtmlPost(t *testing.T) {
             "email":"%v",
             "password":"%v",
             "comment":"%v",
-            "cre_at":"%d"
+            "cre_at":%v
         }`
-	//fmt.Println(resp.Body.String())
 
-	// XXX we are using d.UseNumber on the JSON, why is it still float?!
-
-	//xss_clnd := `>'>">`
 	cmnt_clnd := ``
 
 	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
+	assert.JSONEq(t, expect, resp.Body.String())
+}
+
+func TestKeepsValuesStripsHtmlPut(t *testing.T) {
+	//// we don't want to see log message while running tests!
+	//log.SetOutput(ioutil.Discard)
+	//defer log.SetOutput(os.Stderr)
+
+	s := newServer()
+
+	user := "TestUser"
+	email := "testUser@example.com"
+	password := "!@$%^ASDF"
+	cmnt := `>'>\"><img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+	req, _ := http.NewRequest("PUT", "/user", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 200, resp.Code)
+	expStr := `{
+            "id":2,
+            "flt":2.345,
+            "user":"%v",
+            "email":"%v",
+            "password":"%v",
+            "comment":"%v",
+            "cre_at":%v
+        }`
+	cmnt_clnd := `&gt;&#39;&gt;&#34;&gt;` //i.e. >'>">
+
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
+	assert.JSONEq(t, expect, resp.Body.String())
+}
+
+func TestXssSkippedOnNoContentLength(t *testing.T) {
+	//// we don't want to see log message while running tests
+	//log.SetOutput(ioutil.Discard)
+	//defer log.SetOutput(os.Stderr)
+
+	s := newServer()
+
+	user := "TestUser"
+	email := "testUser@example.com"
+	password := "!@$%^ASDF"
+	cmnt := `<img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+	req, _ := http.NewRequest("POST", "/user", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	//req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":2,
+            "flt":2.345,
+            "user":"%v",
+            "email":"%v",
+            "password":"%v",
+            "comment":"%v",
+            "cre_at":%v
+        }`
+
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt, cre_at)
+	assert.JSONEq(t, expect, resp.Body.String())
+}
+
+func TestXssSkippedOnGetRequest(t *testing.T) {
+	//// we don't want to see log message while running tests
+	//log.SetOutput(ioutil.Discard)
+	//defer log.SetOutput(os.Stderr)
+
+	s := newServer()
+
+	user := "TestUser"
+	email := "testUser@example.com"
+	password := "!@$%^ASDF"
+	cmnt := `<img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+	req, _ := http.NewRequest("GET", "/user/2", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	//req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":2,
+            "flt":2.345,
+            "user":"%v",
+            "email":"%v",
+            "password":"%v",
+            "comment":"%v",
+            "cre_at":%v
+        }`
+
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt, cre_at)
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
