@@ -1,22 +1,26 @@
+// Copyright 2016 David Wright. All rights reserved.
+// Use of this source code is governed by a MIT style
+// license that can be found in the LICENSE file.
+
 package xss
 
-// MIT license
-// Author david_v_wright@yahoo.com
-//
+// XssMw provides an auto remove XSS from all submitted user input.
+// It's only applied on POST and PUT Requests.
 
-// XssMw provides an auto remove malicious XSS from all submitted user input.
-// The method is applied on all POST and PUT Requests only.
+// NOTE: This middleware currently only supports JSON requests - Content-Type application/json
 
 // it's highly configurable and uses HTML sanitizer https://github.com/microcosm-cc/bluemonday
-// for filtering.
-// TODO - how to expose bluemonday?
+// for filtering.  It currently uses the strictest policy StrictPolicy()
+
+//[TODO - how to expose bluemonday?]
 
 // TODO
-// add option to accept XSS on http Request and apply filter on Response
+// add option to pass through XSS to the database and filter out only on the Response.
 // - in other words - data would be stored in the database as it was submitted
-// - data integrity, XSS exploits and all
+// Pros: data integrity
+// Cons: XSS exploits still present
 
-// NOTE: This is Beta level code at best and could be improved and speed ed up
+// NOTE: This is Beta level code with minimal usage and currently no features, it could and hopefully be improved.
 
 import (
 	"errors"
@@ -54,7 +58,7 @@ type XssMw struct {
 
 type XssMwJson map[string]interface{}
 
-// makes XssMw implement the Gin Middleware interface.
+// XssMw implements the Gin Middleware interface.
 func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		mw.callRemoveXss(c)
@@ -62,6 +66,8 @@ func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 	}
 }
 
+// call to do removal and pass to next handler
+// bails if really bad stuff happens
 func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	err := mw.XssRemove(c)
 
@@ -74,10 +80,15 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	c.Next()
 }
 
-// NOTE: This middleware currently only supports on Content-Type = application/json
+// Receives an http request object, processes the body, removing html and returns the request.
+// it passes through the headers (and other parts of the request) untouched.
 
-// only applied if http Request Method	"POST" or "PUT"
-// removes xss of policy on 3 types of request
+// The Request must be Content-Type = application/json - TODO make work for other types.
+// There must be a body. i.e. Content-Length > 1
+
+// Request Method must be "POST" or "PUT"
+
+// The three types of data handled.
 
 // 1st type filter - most common
 //map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
@@ -86,12 +97,18 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 // map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
 // NOTE changes from ["1", "4", "8"] to [1,4,8]
 
-// 3rd type an array of records
-// []interface {}{map[string]interface {}{"name":"asd", "url":"/data/1/as",
-// "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
-//"fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
-// "updated_at":"1480791630", "status":"NEW",
-// "updated_by":"537", "created_at":"1480450694"},  map[string]interface {}{"name":"asd", "url":"/data/1/as", etc
+// 3rd type an "array of records"
+// []interface {}{
+//    map[string]interface {}{"name":"asd", "url":"/data/1/as",
+//                            "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
+//                            "fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
+//                            "updated_at":"1480791630", "status":"NEW",
+//                            "updated_by":"537", "created_at":"1480450694"},
+//    map[string]interface {}{"name":"asd2", "url":"/data/2/as", etc... },
+//    map[string]interface {}{"name":"asd3", "url":"/data/3/as", etc... },
+//    ...
+// }
+// TODO refactor
 func (mw *XssMw) XssRemove(c *gin.Context) error {
 	//dump, derr := httputil.DumpRequest(c.Request, true)
 	//fmt.Print(derr)
@@ -117,20 +134,19 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	ct_len, _ := strconv.Atoi(cts_len)
 
 	// https://golang.org/src/net/http/request.go
-	// set expected application type
+	// check expected application type
 	if ct_hdr == "application/json" && ct_len > 1 && (ReqMethod == "POST" || ReqMethod == "PUT") {
-
 		//ReqURL := c.Request.URL
 		//fmt.Printf("%v URL\n", ReqURL)
 
 		//// TODO URL's TO SKIP
-		//// will have to be a regex or index of in reality  -
+		//// will have to be a regex or indexof in reality
 		//// XXX we wont know id value (at end)
-		//if ReqURL.String() == "/api/v1/project_talent_wanted/1" {
+		//if ReqURL.String() == "/api/v1/end_point/1" {
 		//	fmt.Printf("Skipping URL: %v\n", ReqURL)
 		//	return nil
 		//}
-		//if ReqURL.String() == "/api/v1/project_media/1" {
+		//if ReqURL.String() == "/api/v1/end_point2/1" {
 		//	fmt.Printf("Skipping URL: %v\n", ReqURL)
 		//	return nil
 		//}
@@ -180,12 +196,13 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 			return errors.New("Error attempting to decode JSON")
 		}
 	}
-	// if here, all should be well
+	// if here, all should be well or nothing was actually done,
+	// like, if someone installed this but is not actually Posting JSON...
+	// either way return happily
 	return nil
 }
 
-// encode json string to JSON
-// set http request body to json string
+// encode processed body back to json and re set http request body
 func SetRequestBody(c *gin.Context, buff bytes.Buffer) error {
 	// XXX clean up - probably don't need to convert to string
 	// only to convert back to NewBuffer for NopCloser
@@ -197,27 +214,30 @@ func SetRequestBody(c *gin.Context, buff bytes.Buffer) error {
 		return merr
 	}
 
-	fmt.Printf("ReqBody Pre: %v\n", c.Request.Body)
+	//fmt.Printf("ReqBody Pre: %v\n", c.Request.Body)
 	//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buff.String())))
 	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bodOut)))
 
-	fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
-	fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
+	//fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
+	//fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
 	return nil
 }
 
-// TODO change method signature - func (xmj XssMwJson) ApplyXssPolicy(bytes.Buffer) {
-// build response - method call
+// De constructs the http request body
+// removes undesirable content
+// keep the good content to construct and return cleaned http request
 // takes arg map[string]interface{} and a bluemonday Policy
 // returns bytes.Buffer
+// TODO change method signature - func (xmj XssMwJson) ApplyXssPolicy(bytes.Buffer) {
 func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
-
-	fmt.Printf("JSON BOD: %#v\n", xmj)
+	//fmt.Printf("JSON BOD: %#v\n", xmj)
 
 	var buff bytes.Buffer
 	buff.WriteString(`{`)
 
 	// TODO should be passed in to method
+	// needs to be configurable - set in passed struct
+	// right now it's strict mode or the highway...
 	//p := bluemonday.UGCPolicy()
 	p := bluemonday.StrictPolicy()
 
@@ -233,7 +253,7 @@ func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
 
 		buff.WriteString(`"` + k + `":`)
 
-		switch vv := v.(type) { // FYI, JSON is string or float
+		switch vv := v.(type) { // FYI, JSON data is string or float
 		case string:
 			buff.WriteString(`"` + p.Sanitize(vv) + `",`)
 		case float64:
@@ -243,7 +263,7 @@ func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
 			buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)) + `,`)
 		default:
 			switch vvv := vv.(type) {
-			// probably not very common request but I do it!
+			// probably not very common request but I do it
 			// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
 			case []interface{}:
 				var lst bytes.Buffer
@@ -272,7 +292,9 @@ func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
 	return buff
 }
 
-// XXX will this help us create filter on Response functioality?
+// TODO
+// add feature to accept all content on filter on Response instead of Request
+// NOTE: I don't know how to achieve this yet... will something like this help?
 //func ConstructRequest(next http.Handler) http.Handler {
 //	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 //		fmt.Println(r.Method, "-", r.RequestURI)
