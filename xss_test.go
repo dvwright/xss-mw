@@ -1,3 +1,7 @@
+// Copyright 2016 David Wright. All rights reserved.
+// Use of this source code is governed by a MIT style
+// license that can be found in the LICENSE file.
+
 package xss
 
 // see https://raw.githubusercontent.com/gin-gonic/contrib/master/secure/secure_test.go
