@@ -6,22 +6,22 @@ package xss
 
 // XssMw provides an auto remove XSS from all submitted user input.
 // It's only applied on POST and PUT Requests.
-
+//
 // NOTE: This middleware currently only supports JSON requests - Content-Type application/json
-
+//
 // it's highly configurable and uses HTML sanitizer https://github.com/microcosm-cc/bluemonday
 // for filtering.  It currently uses the strictest policy StrictPolicy()
-
+//
 //[TODO - how to expose bluemonday?]
-
+//
 // TODO
 // add option to pass through XSS to the database and filter out only on the Response.
 // - in other words - data would be stored in the database as it was submitted
 // Pros: data integrity
 // Cons: XSS exploits still present
-
+//
 // NOTE: This is Beta level code with minimal usage and currently no features, it could and hopefully be improved.
-
+//
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
@@ -53,7 +53,6 @@ type XssMw struct {
 	//PayloadFunc func(userID string) map[string]interface{}
 	// User can define own Unauthorized func.
 	//Unauthorized func(*gin.Context, int, string)
-
 }
 
 type XssMwJson map[string]interface{}
@@ -82,21 +81,21 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 
 // Receives an http request object, processes the body, removing html and returns the request.
 // it passes through the headers (and other parts of the request) untouched.
-
+//
 // The Request must be Content-Type = application/json - TODO make work for other types.
 // There must be a body. i.e. Content-Length > 1
-
+//
 // Request Method must be "POST" or "PUT"
-
+//
 // The three types of data handled.
-
+//
 // 1st type filter - most common
 //map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
-
+//
 // 2nd type an id with associated ids in array
 // map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
 // NOTE changes from ["1", "4", "8"] to [1,4,8]
-
+//
 // 3rd type an "array of records"
 // []interface {}{
 //    map[string]interface {}{"name":"asd", "url":"/data/1/as",
