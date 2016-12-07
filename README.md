@@ -41,29 +41,40 @@ func main() {
 
 ```
 
-# Notes
 
-There are a few things to watch out for. For example it will skip filtering for a field named 'password' 
-
-but will filter everything else, there is a TODO for configs to add passing excude tables/fields from filtering.
+There are a few things to watch out for. 
 
 
-It's highly configurable (not yet but will be) and uses HTML sanitizer https://github.com/microcosm-cc/bluemonday 
+For example.
+
+It will skip filtering for a field named 'password' but will run the filter on everything else.
+
+
+There is a TODO for configs to add passing excude tables/fields from filtering.
+
+
+
+The plan is to be highly configurable since it uses the HTML sanitizer https://github.com/microcosm-cc/bluemonday 
 
 for filtering.  
 
+
 It uses the strictest policy StrictPolicy() and is not confiurable at this time but will be soon. 
+
 
 e.g. The plan is the you can provide whatever Policy you want to enforce.
 
 
+# Data
+
 Currently, it removes (deletes) all HTML and malicious detected input from user input on 
 
-the submitted request to the server. In the future the plan is have a feature to store 
+the submitted request to the server. 
 
-all user submitted data
+In the future the plan is have a feature to store all user submitted data intact and have the option to 
 
-intact and filter it out on the http Response, so you can choose your preference.
+filter it out on the http Response, so you can choose your preference.
+
 
 - in other words - data would be stored in the database as it was submitted and removed in Responses back to the user.
 
@@ -72,15 +83,20 @@ Pros: data integrity
 Cons: XSS exploits still present
 
 
-NOTE: This is Beta level code with minimal actual usage and currently no features.
+
+# NOTE: This is Beta level code with minimal actual usage and currently no features.
 
 
 ## Contributing 
 
 You are welcome to contribute to this project. 
+
 Please update/add tests as appropriate.
+
 Send pull request against the Develop branch.
+
 Please use the same formatting as the Go authors. Run code through gofmt before submitting. 
+
 Thanks
 
 
