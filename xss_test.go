@@ -4,21 +4,20 @@ package xss
 
 import (
 	"github.com/gin-gonic/gin"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	//"reflect"
 	"bytes"
+	//"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	//"io"
-	//"os"
+	"io/ioutil"
+	"log"
+	"os"
 	"strconv"
 	"testing"
 )
-
-//const (
-//	testResponse = "bar"
-//)
 
 type User struct {
 	Id       int     `json:"id" form:"id" binding:"required"`
@@ -49,27 +48,17 @@ func newServer() *gin.Engine {
 	//r.Use(xss.FilterXss())
 
 	r.GET("/user/:id", func(c *gin.Context) {
-		fmt.Println(c.Request.Body)
-		var user User
-		fmt.Printf("%#v", user)
-		err := c.Bind(&user)
-		fmt.Printf("%#v", user)
-		if err != nil {
-			fmt.Println(err)
-			c.JSON(404, gin.H{"msg": "Bind Failed."})
-			return
-		}
-		c.JSON(200, user)
+		c.String(200, fmt.Sprintf("%v", c.Request.Body))
 	})
 
 	r.PUT("/user", func(c *gin.Context) {
-		fmt.Println(c.Request.Body)
+		//fmt.Println(c.Request.Body)
 		var user User
-		fmt.Printf("%#v", user)
+		//fmt.Printf("%#v", user)
 		err := c.Bind(&user)
-		fmt.Printf("%#v", user)
+		//fmt.Printf("%#v", user)
 		if err != nil {
-			fmt.Println(err)
+			//fmt.Println(err)
 			c.JSON(404, gin.H{"msg": "Bind Failed."})
 			return
 		}
@@ -77,14 +66,14 @@ func newServer() *gin.Engine {
 	})
 
 	r.POST("/user", func(c *gin.Context) {
-		fmt.Println(c.Request.Body)
+		//fmt.Println(c.Request.Body)
 		//fmt.Println(c.Header.Get("Content-Length"))
 		var user User
-		fmt.Printf("%#v", user)
+		//fmt.Printf("%#v", user)
 		err := c.Bind(&user)
-		fmt.Printf("%#v", user)
+		//fmt.Printf("%#v", user)
 		if err != nil {
-			fmt.Println(err)
+			//fmt.Println(err)
 			c.JSON(404, gin.H{"msg": "Bind Failed."})
 			return
 		}
@@ -94,10 +83,10 @@ func newServer() *gin.Engine {
 	return r
 }
 
-func TestKeepsValuesStripsHtmlPost(t *testing.T) {
-	//// we don't want to see log message while running tests
-	//log.SetOutput(ioutil.Discard)
-	//defer log.SetOutput(os.Stderr)
+func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {
+	// don't want to see log message while running tests
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
 
 	s := newServer()
 
@@ -109,7 +98,6 @@ func TestKeepsValuesStripsHtmlPost(t *testing.T) {
 	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
 	req, _ := http.NewRequest("POST", "/user", bytes.NewBufferString(oParams))
 	req.Header.Add("Content-Type", "application/json")
-	// XXX leave this out, fails
 	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
 
 	resp := httptest.NewRecorder()
@@ -126,16 +114,15 @@ func TestKeepsValuesStripsHtmlPost(t *testing.T) {
             "cre_at":%v
         }`
 
-	cmnt_clnd := ``
+	cmnt_clnd := `` // malicious markup content stripped
 
 	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
-func TestKeepsValuesStripsHtmlPut(t *testing.T) {
-	//// we don't want to see log message while running tests!
-	//log.SetOutput(ioutil.Discard)
-	//defer log.SetOutput(os.Stderr)
+func TestKeepsValuesStripsHtmlOnPut(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
 
 	s := newServer()
 
@@ -169,9 +156,8 @@ func TestKeepsValuesStripsHtmlPut(t *testing.T) {
 }
 
 func TestXssSkippedOnNoContentLength(t *testing.T) {
-	//// we don't want to see log message while running tests
-	//log.SetOutput(ioutil.Discard)
-	//defer log.SetOutput(os.Stderr)
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
 
 	s := newServer()
 
@@ -183,7 +169,6 @@ func TestXssSkippedOnNoContentLength(t *testing.T) {
 	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
 	req, _ := http.NewRequest("POST", "/user", bytes.NewBufferString(oParams))
 	req.Header.Add("Content-Type", "application/json")
-	//req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
 
 	resp := httptest.NewRecorder()
 	s.ServeHTTP(resp, req)
@@ -204,21 +189,41 @@ func TestXssSkippedOnNoContentLength(t *testing.T) {
 }
 
 func TestXssSkippedOnGetRequest(t *testing.T) {
-	//// we don't want to see log message while running tests
-	//log.SetOutput(ioutil.Discard)
-	//defer log.SetOutput(os.Stderr)
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	s := newServer()
+
+	cmnt := `<img src=x onerror=alert(0)>`
+	oParams := `{"id":2, "comment":"` + cmnt + `"}`
+
+	req, _ := http.NewRequest("GET", "/user/2", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 200, resp.Code)
+	assert.Equal(t, `{{"id":2, "comment":"`+cmnt+`"}}`, resp.Body.String())
+}
+
+// TODO - conf feature pass in fields to skip
+func TestPasswordIsNotFiltered(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
 
 	s := newServer()
 
 	user := "TestUser"
 	email := "testUser@example.com"
-	password := "!@$%^ASDF"
-	cmnt := `<img src=x onerror=alert(0)>`
+	password := "<>!@$%^ASDF<>" // the 'password' keyword is set to not filter out xss
+	cmnt := `<script>alert(0)</script>`
 	cre_at := "1481017167"
 	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
-	req, _ := http.NewRequest("GET", "/user/2", bytes.NewBufferString(oParams))
+	req, _ := http.NewRequest("POST", "/user", bytes.NewBufferString(oParams))
 	req.Header.Add("Content-Type", "application/json")
-	//req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
 
 	resp := httptest.NewRecorder()
 	s.ServeHTTP(resp, req)
@@ -234,606 +239,124 @@ func TestXssSkippedOnGetRequest(t *testing.T) {
             "cre_at":%v
         }`
 
-	expect := fmt.Sprintf(expStr, user, email, password, cmnt, cre_at)
+	cmnt_clnd := `` // malicious markup content stripped
+
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
-// TODO what is password is '<>Password<>'!
+// TODO
+// multipart form posts really need to be filtered!
+// careful with content body such as files, images, audio files, etc!
+// Content-Disposition: form-data; name="comment"
+//>'>\"><img src=x onerror=alert(0)>
+func TestXssFiltersJSONAContentTypeOnly(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
 
-//func TestAcceptsJsonOnlyPOST(t *testing.T) {
-//	s := newServer()
-//	oParams := `{"email": "` + email + `", "html":"` + html + `", "user":"` + user + `"}`
-//	req, _ := http.NewRequest("POST", "/", bytes.NewBufferString(oParams))
-//	//req.Header.Add("Content-Type", "application/json")
-//
-//	resp := httptest.NewRecorder()
-//	s.ServeHTTP(resp, req)
-//	fmt.Println(resp.Body.String())
-//	assert.Equal(t, 500, resp.Code)
-//}
-//
-//func TestAcceptsJsonOnlyPUT(t *testing.T) {
-//	s := newServer()
-//	oParams := `{"email": "` + email + `", "html":"` + html + `", "user":"` + user + `"}`
-//	req, _ := http.NewRequest("PUT", "/", bytes.NewBufferString(oParams))
-//	//req.Header.Add("Content-Type", "application/json")
-//
-//	resp := httptest.NewRecorder()
-//	s.ServeHTTP(resp, req)
-//	fmt.Println(resp.Body.String())
-//	assert.Equal(t, 500, resp.Code)
-//}
+	s := newServer()
 
-//func TestKeepsValuesStripsHtmlPut(t *testing.T) {
-//}
+	user := "TestUser"
+	email := "testUser@example.com"
+	password := "!@$%^ASDF"
+	cmnt := `>'>\"><img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
 
-//func TestNoFilterAppliedGet(t *testing.T) {
-//}
+	Oparams := map[string]string{
+		"id":       "2",
+		"user":     user,
+		"flt":      "2.345",
+		"email":    email,
+		"password": password,
+		"comment":  cmnt,
+		"cre_at":   cre_at,
+	}
 
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	for key, val := range Oparams {
+		_ = writer.WriteField(key, val)
+	}
+	err := writer.Close()
+	assert.Nil(t, err)
+
+	boundary := writer.Boundary()
+	close_buf := bytes.NewBufferString(fmt.Sprintf("\r\n--%s--\r\n", boundary))
+
+	req, perr := http.NewRequest("POST", "/user", body)
+	assert.Nil(t, perr)
+	// Set headers for multipart, and Content Length
+	req.Header.Add("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.ContentLength = int64(body.Len()) + int64(close_buf.Len())
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+	//fmt.Println(resp.Body.String())
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":2,
+            "flt":2.345,
+            "user":"%v",
+            "email":"%v",
+            "password":"%v",
+            "comment":"%v",
+            "cre_at":%v
+        }`
+
+	cmnt_clnd := `>'>\\\"><img src=x onerror=alert(0)>` // left intact
+
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
+	assert.JSONEq(t, expect, resp.Body.String())
+
+}
+
+// TODO - prove Headers and Other Request fields left intact
 // Prove Headers left untouched
+// for example
 //      req.Header.Add("Authorization", "Bearer "+authToken)
+func TestKeepsHeadersIntact(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
 
-//func TestBasic(t *testing.T) {
-//	user := "TestUser"
-//	email := "testUser@example.com"
-//	html := "<p>My Markup Text</p>"
-//	oParams := `{"email": "` + email + `", "html":"` + html + `", "user":"` + user + `"}`
-//	req, _ := http.NewRequest("POST", "/", bytes.NewBufferString(oParams))
-//	req.Header.Add("Content-Type", "application/json")
-//
-//	resp := httptest.NewRecorder()
-//	ts.ServeHTTP(resp, req)
-//	fmt.Println(resp.Body.String())
-//
-//	assert.Equal(t, 201, resp.Code)
-//	expStr := `{
-//            "id":1,
-//            "username":"%v",
-//            "email":"%v",
-//            "password":"%v",
-//            "status":"UNCONFIRMED",
-//            "password_expire":%d,
-//            "pass_reset_token":"%v",
-//            "pass_reset_token_time":%d,
-//            "created_at":%d,
-//            "updated_at":%d
-//        }`
-//	apiRes := resp.Body.String()
-//
-//	expect := fmt.Sprintf(expStr, testUsername, testEmail, passEnc, in3Mnths, passTok, in3Hrs, tStamp, tStamp)
-//	//fmt.Println(resp.Body.String())
-//	assert.JSONEq(t, expect, resp.Body.String())
-//
-//}
-//
-//func TestNoConfig(t *testing.T) {
-//	s := newServer(Options{
-//	// Intentionally left blank.
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "http://example.com/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Body.String(), "bar")
-//}
-//
-//func TestNoAllowHosts(t *testing.T) {
-//	s := newServer(Options{
-//		AllowedHosts: []string{},
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Body.String(), `bar`)
-//}
-//
-//func TestGoodSingleAllowHosts(t *testing.T) {
-//	s := newServer(Options{
-//		AllowedHosts: []string{"www.example.com"},
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Body.String(), `bar`)
-//}
-//
-//func TestBadSingleAllowHosts(t *testing.T) {
-//	s := newServer(Options{
-//		AllowedHosts: []string{"sub.example.com"},
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusInternalServerError)
-//}
-//
-//func TestGoodMultipleAllowHosts(t *testing.T) {
-//	s := newServer(Options{
-//		AllowedHosts: []string{"www.example.com", "sub.example.com"},
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "sub.example.com"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Body.String(), `bar`)
-//}
-//
-//func TestBadMultipleAllowHosts(t *testing.T) {
-//	s := newServer(Options{
-//		AllowedHosts: []string{"www.example.com", "sub.example.com"},
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www3.example.com"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusInternalServerError)
-//}
-//
-//func TestAllowHostsInDevMode(t *testing.T) {
-//	s := newServer(Options{
-//		AllowedHosts:  []string{"www.example.com", "sub.example.com"},
-//		IsDevelopment: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www3.example.com"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//}
-//
-//func TestBadHostHandler(t *testing.T) {
-//
-//	badHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//		http.Error(w, "BadHost", http.StatusInternalServerError)
-//	})
-//
-//	s := newServer(Options{
-//		AllowedHosts:   []string{"www.example.com", "sub.example.com"},
-//		BadHostHandler: badHandler,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www3.example.com"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusInternalServerError)
-//
-//	// http.Error outputs a new line character with the response.
-//	expect(t, res.Body.String(), "BadHost\n")
-//}
-//
-//func TestSSL(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "https"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//}
-//
-//func TestSSLInDevMode(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect:   true,
-//		IsDevelopment: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//}
-//
-//func TestBasicSSL(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusMovedPermanently)
-//	expect(t, res.Header().Get("Location"), "https://www.example.com/foo")
-//}
-//
-//func TestBasicSSLWithHost(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect: true,
-//		SSLHost:     "secure.example.com",
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusMovedPermanently)
-//	expect(t, res.Header().Get("Location"), "https://secure.example.com/foo")
-//}
-//
-//func TestBadProxySSL(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//	req.Header.Add("X-Forwarded-Proto", "https")
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusMovedPermanently)
-//	expect(t, res.Header().Get("Location"), "https://www.example.com/foo")
-//}
-//
-//func TestCustomProxySSL(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect:     true,
-//		SSLProxyHeaders: map[string]string{"X-Forwarded-Proto": "https"},
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//	req.Header.Add("X-Forwarded-Proto", "https")
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//}
-//
-//func TestCustomProxySSLInDevMode(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect:     true,
-//		SSLProxyHeaders: map[string]string{"X-Forwarded-Proto": "https"},
-//		IsDevelopment:   true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//	req.Header.Add("X-Forwarded-Proto", "http")
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//}
-//
-//func TestCustomProxyAndHostSSL(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect:     true,
-//		SSLProxyHeaders: map[string]string{"X-Forwarded-Proto": "https"},
-//		SSLHost:         "secure.example.com",
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//	req.Header.Add("X-Forwarded-Proto", "https")
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//}
-//
-//func TestCustomBadProxyAndHostSSL(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect:     true,
-//		SSLProxyHeaders: map[string]string{"X-Forwarded-Proto": "superman"},
-//		SSLHost:         "secure.example.com",
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//	req.Header.Add("X-Forwarded-Proto", "https")
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusMovedPermanently)
-//	expect(t, res.Header().Get("Location"), "https://secure.example.com/foo")
-//}
-//
-//func TestCustomBadProxyAndHostSSLWithTempRedirect(t *testing.T) {
-//	s := newServer(Options{
-//		SSLRedirect:          true,
-//		SSLProxyHeaders:      map[string]string{"X-Forwarded-Proto": "superman"},
-//		SSLHost:              "secure.example.com",
-//		SSLTemporaryRedirect: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//	req.Host = "www.example.com"
-//	req.URL.Scheme = "http"
-//	req.Header.Add("X-Forwarded-Proto", "https")
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusTemporaryRedirect)
-//	expect(t, res.Header().Get("Location"), "https://secure.example.com/foo")
-//}
-//
-//func TestStsHeader(t *testing.T) {
-//	s := newServer(Options{
-//		STSSeconds: 315360000,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("Strict-Transport-Security"), "max-age=315360000")
-//}
-//
-//func TestStsHeaderInDevMode(t *testing.T) {
-//	s := newServer(Options{
-//		STSSeconds:    315360000,
-//		IsDevelopment: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("Strict-Transport-Security"), "")
-//}
-//
-//func TestStsHeaderWithSubdomain(t *testing.T) {
-//	s := newServer(Options{
-//		STSSeconds:           315360000,
-//		STSIncludeSubdomains: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("Strict-Transport-Security"), "max-age=315360000; includeSubdomains")
-//}
-//
-//func TestFrameDeny(t *testing.T) {
-//	s := newServer(Options{
-//		FrameDeny: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("X-Frame-Options"), "DENY")
-//}
-//
-//func TestCustomFrameValue(t *testing.T) {
-//	s := newServer(Options{
-//		CustomFrameOptionsValue: "SAMEORIGIN",
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("X-Frame-Options"), "SAMEORIGIN")
-//}
-//
-//func TestCustomFrameValueWithDeny(t *testing.T) {
-//	s := newServer(Options{
-//		FrameDeny:               true,
-//		CustomFrameOptionsValue: "SAMEORIGIN",
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("X-Frame-Options"), "SAMEORIGIN")
-//}
-//
-//func TestContentNosniff(t *testing.T) {
-//	s := newServer(Options{
-//		ContentTypeNosniff: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("X-Content-Type-Options"), "nosniff")
-//}
-//
-//func TestXSSProtection(t *testing.T) {
-//	s := newServer(Options{
-//		BrowserXssFilter: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("X-XSS-Protection"), "1; mode=block")
-//}
-//
-//func TestCsp(t *testing.T) {
-//	s := newServer(Options{
-//		ContentSecurityPolicy: "default-src 'self'",
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("Content-Security-Policy"), "default-src 'self'")
-//}
-//
-//func TestInlineSecure(t *testing.T) {
-//	s := newServer(Options{
-//		FrameDeny: true,
-//	})
-//
-//	res := httptest.NewRecorder()
-//	req, _ := http.NewRequest("GET", "/foo", nil)
-//
-//	s.ServeHTTP(res, req)
-//
-//	expect(t, res.Code, http.StatusOK)
-//	expect(t, res.Header().Get("X-Frame-Options"), "DENY")
-//}
-//
-///* Test Helpers */
-//func expect(t *testing.T, a interface{}, b interface{}) {
-//	if a != b {
-//		t.Errorf("Expected [%v] (type %v) - Got [%v] (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))
-//	}
-//}
-//
-//// also
-//
-////package gzip
-////
-////import (
-////  "compress/gzip"
-////  "io/ioutil"
-////  "net/http"
-////  "net/http/httptest"
-////  "strconv"
-////  "testing"
-////
-////  "github.com/gin-gonic/gin"
-////  "github.com/stretchr/testify/assert"
-////)
-////
-////const (
-////  testResponse = "Gzip Test Response "
-////)
-//
-//func newServer() *gin.Engine {
-//	router := gin.Default()
-//	router.Use(Gzip(DefaultCompression))
-//	router.GET("/", func(c *gin.Context) {
-//		c.Header("Content-Length", strconv.Itoa(len(testResponse)))
-//		c.String(200, testResponse)
-//	})
-//	return router
-//}
-//
-//func TestGzip(t *testing.T) {
-//	req, _ := http.NewRequest("GET", "/", nil)
-//	req.Header.Add("Accept-Encoding", "gzip")
-//
-//	w := httptest.NewRecorder()
-//	r := newServer()
-//	r.ServeHTTP(w, req)
-//
-//	assert.Equal(t, w.Code, 200)
-//	assert.Equal(t, w.Header().Get("Content-Encoding"), "gzip")
-//	assert.Equal(t, w.Header().Get("Vary"), "Accept-Encoding")
-//	assert.Equal(t, w.Header().Get("Content-Length"), "0")
-//	assert.NotEqual(t, w.Body.Len(), 19)
-//
-//	gr, err := gzip.NewReader(w.Body)
-//	assert.NoError(t, err)
-//	defer gr.Close()
-//
-//	body, _ := ioutil.ReadAll(gr)
-//	assert.Equal(t, string(body), testResponse)
-//}
-//
-//func TestGzipPNG(t *testing.T) {
-//	req, _ := http.NewRequest("GET", "/image.png", nil)
-//	req.Header.Add("Accept-Encoding", "gzip")
-//
-//	router := gin.New()
-//	router.Use(Gzip(DefaultCompression))
-//	router.GET("/image.png", func(c *gin.Context) {
-//		c.String(200, "this is a PNG!")
-//	})
-//
-//	w := httptest.NewRecorder()
-//	router.ServeHTTP(w, req)
-//
-//	assert.Equal(t, w.Code, 200)
-//	assert.Equal(t, w.Header().Get("Content-Encoding"), "")
-//	assert.Equal(t, w.Header().Get("Vary"), "")
-//	assert.Equal(t, w.Body.String(), "this is a PNG!")
-//}
-//
-//func TestNoGzip(t *testing.T) {
-//	req, _ := http.NewRequest("GET", "/", nil)
-//
-//	w := httptest.NewRecorder()
-//	r := newServer()
-//	r.ServeHTTP(w, req)
-//
-//	assert.Equal(t, w.Code, 200)
-//	assert.Equal(t, w.Header().Get("Content-Encoding"), "")
-//	assert.Equal(t, w.Header().Get("Content-Length"), "19")
-//	assert.Equal(t, w.Body.String(), testResponse)
-//}
+	fmt.Println("TODO TestKeepsHeadersIntact")
+	t.Skip()
+
+	//// we don't want to see log message while running tests
+	//log.SetOutput(ioutil.Discard)
+	//defer log.SetOutput(os.Stderr)
+
+	s := newServer()
+
+	user := "TestUser"
+	email := "testUser@example.com"
+	password := "!@$%^ASDF"
+	cmnt := `<img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+	req, _ := http.NewRequest("POST", "/user", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+	//req.Header.Add("Authorization", "Bearer "+authToken)
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":2,
+            "flt":2.345,
+            "user":"%v",
+            "email":"%v",
+            "password":"%v",
+            "comment":"%v",
+            "cre_at":%v
+        }`
+
+	cmnt_clnd := `` // malicious markup content stripped
+
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
+	assert.JSONEq(t, expect, resp.Body.String())
+}
+
+// TODO
+// prove the 3 types of filtering

@@ -243,18 +243,21 @@ func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
 
 	m := xmj //m := jsonBod.(map[string]interface{})
 	for k, v := range m {
-
-		// TODO implement fields to skip
-		//if string(k) == "fqdn_url" {
-		//	continue
-		//}
-
 		//fmt.Println(k, v)
 
 		buff.WriteString(`"` + k + `":`)
 
+		// TODO implement config passing fields to skip
+		if string(k) == "password" {
+			// argh, work needed here - for now - assume string
+			//fmt.Println(k, "is string", v)
+			buff.WriteString(`"` + fmt.Sprintf("%s", v) + `",`)
+			continue
+		}
+
 		switch vv := v.(type) { // FYI, JSON data is string or float
 		case string:
+			//fmt.Println(k, "is string", vv)
 			buff.WriteString(`"` + p.Sanitize(vv) + `",`)
 		case float64:
 			//fmt.Println(k, "is float", vv)
