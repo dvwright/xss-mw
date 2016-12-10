@@ -254,7 +254,8 @@ func TestPasswordIsNotFiltered(t *testing.T) {
 // careful with content body such as files, images, audio files, etc!
 // Content-Disposition: form-data; name="comment"
 //>'>\"><img src=x onerror=alert(0)>
-func TestXssFiltersJSONAContentTypeOnly(t *testing.T) {
+//func TestXssFiltersJSONAContentTypeOnly(t *testing.T) {
+func TestXssFiltersMultiPartFormData(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
 
@@ -307,11 +308,80 @@ func TestXssFiltersJSONAContentTypeOnly(t *testing.T) {
             "cre_at":%v
         }`
 
-	cmnt_clnd := `>'>\\\"><img src=x onerror=alert(0)>` // left intact
+	//cmnt_clnd := `>'>\\\"><img src=x onerror=alert(0)>` // left intact
+	cmnt_clnd := `&gt;&#39;&gt;&#34;&gt;` //i.e. >'>">
 
 	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
 	assert.JSONEq(t, expect, resp.Body.String())
+}
 
+//TODO
+// POST /post?id=1234&page=1 HTTP/1.1
+// Content-Type: application/x-www-form-urlencoded
+//name=manu&message=this_is_great
+//application/x-www-form-urlencoded
+func TestXssFiltersXFormEncoded(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	fmt.Println("TODO TestXssFiltersXFormEncoded")
+	t.Skip()
+
+	s := newServer()
+
+	user := "TestUser"
+	email := "testUser@example.com"
+	password := "!@$%^ASDF"
+	cmnt := `>'>\"><img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+
+	Oparams := map[string]string{
+		"id":       "2",
+		"user":     user,
+		"flt":      "2.345",
+		"email":    email,
+		"password": password,
+		"comment":  cmnt,
+		"cre_at":   cre_at,
+	}
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	for key, val := range Oparams {
+		_ = writer.WriteField(key, val)
+	}
+	err := writer.Close()
+	assert.Nil(t, err)
+
+	boundary := writer.Boundary()
+	close_buf := bytes.NewBufferString(fmt.Sprintf("\r\n--%s--\r\n", boundary))
+
+	req, perr := http.NewRequest("POST", "/user", body)
+	assert.Nil(t, perr)
+	// Set headers for multipart, and Content Length
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	//
+	req.ContentLength = int64(body.Len()) + int64(close_buf.Len())
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+	//fmt.Println(resp.Body.String())
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":2,
+            "flt":2.345,
+            "user":"%v",
+            "email":"%v",
+            "password":"%v",
+            "comment":"%v",
+            "cre_at":%v
+        }`
+
+	//cmnt_clnd := `>'>\\\"><img src=x onerror=alert(0)>` // left intact
+	cmnt_clnd := `&gt;&#39;&gt;&#34;&gt;` //i.e. >'>">
+
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
+	assert.JSONEq(t, expect, resp.Body.String())
 }
 
 // TODO - prove Headers and Other Request fields left intact

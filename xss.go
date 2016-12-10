@@ -35,6 +35,7 @@ import (
 	//"net/url"
 	"github.com/microcosm-cc/bluemonday"
 	"strconv"
+	"strings"
 )
 
 // TODO - add features/configuration
@@ -121,7 +122,7 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	ReqMethod := c.Request.Method
 	//fmt.Printf("%v Method\n", ReqMethod)
 
-	ReqBody := c.Request.Body
+	//ReqBody := c.Request.Body
 	//fmt.Printf("%v URL\n", ReqBody)
 
 	// [application/json] only supported
@@ -134,7 +135,7 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 
 	// https://golang.org/src/net/http/request.go
 	// check expected application type
-	if ct_hdr == "application/json" && ct_len > 1 && (ReqMethod == "POST" || ReqMethod == "PUT") {
+	if ReqMethod == "POST" || ReqMethod == "PUT" {
 		//ReqURL := c.Request.URL
 		//fmt.Printf("%v URL\n", ReqURL)
 
@@ -150,54 +151,103 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 		//	return nil
 		//}
 
-		var jsonBod interface{}
-		d := json.NewDecoder(ReqBody)
-		d.UseNumber()
-		jsnErr := d.Decode(&jsonBod)
-		//fmt.Printf("JSON BOD: %#v\n", jsonBod)
-
-		if jsnErr == nil {
-			switch jbt := jsonBod.(type) {
-			// most common
-			case map[string]interface{}:
-				//fmt.Printf("\n\n\n1st type\n\n\n")
-				xmj := jsonBod.(map[string]interface{})
-				buff := ApplyXssPolicy(xmj)
-				err := SetRequestBody(c, buff)
-				if err != nil {
-					//fmt.Println("Set request body failed")
-					return errors.New("Set Request.Body Error")
-				}
-			// a multi records request
-			case []interface{}:
-				var multiRec bytes.Buffer
-				multiRec.WriteString(`[`)
-				for _, n := range jbt {
-					//fmt.Printf("Item: %v= %v\n", i, n)
-					xmj := n.(map[string]interface{})
-					buff := ApplyXssPolicy(xmj)
-					multiRec.WriteString(buff.String() + `,`)
-				}
-				multiRec.Truncate(multiRec.Len() - 1) // remove last ','
-				multiRec.WriteString(`]`)
-				err := SetRequestBody(c, multiRec)
-				if err != nil {
-					//fmt.Println("Set request body failed")
-					return errors.New("Set Request.Body Error")
-				}
-			default:
-				//var r = reflect.TypeOf(jbt) // debug type
-				//fmt.Printf("Unknown Type!:%v\n", r)
-				return errors.New("Unknown Content Type Received")
+		if ct_len > 1 && ct_hdr == "application/json" {
+			err := HandleJson(c)
+			if err != nil {
+				//fmt.Println("Set request body failed")
+				return err
+			}
+		} else if ct_hdr == "application/x-www-form-urlencoded" {
+			fmt.Println("TODO handle application/x-www-form-urlencoded")
+			for key, val := range c.Params {
+				fmt.Println(key)
+				fmt.Println(val)
 			}
 
-		} else {
-			return errors.New("Error attempting to decode JSON")
+			// XXX careful with file part uploads
+			// just do basic fields - how to tell difference?
+			//
+			//err := HandleXFormEncoded(c)
+			//if err != nil {
+			//	//fmt.Println("Set request body failed")
+			//	return err
+			//}
+		} else if strings.Contains(ct_hdr, "multipart/form-data") {
+			fmt.Println("TODO handle multipart/form-data")
+
+			err := HandleMultiPartFormData(c)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	// if here, all should be well or nothing was actually done,
 	// like, if someone installed this but is not actually Posting JSON...
 	// either way return happily
+	return nil
+}
+
+// XXX careful with file part uploads
+// just do basic fields - how to tell difference?
+func HandleMultiPartFormData(c *gin.Context) error {
+	fmt.Printf("%v", c.Query)
+	fmt.Printf("%v", c.Params)
+	fmt.Printf("%v", c.Request.Body)
+	//var mpFormData interface{}
+	//d := json.NewDecoder(c.Request.Body)
+	//d.UseNumber()
+	//jsnErr := d.Decode(&mpFormData)
+	////fmt.Printf("JSON BOD: %#v\n", jsonBod)
+
+	return nil
+
+}
+
+func HandleJson(c *gin.Context) error {
+	var jsonBod interface{}
+	d := json.NewDecoder(c.Request.Body)
+	d.UseNumber()
+	jsnErr := d.Decode(&jsonBod)
+	//fmt.Printf("JSON BOD: %#v\n", jsonBod)
+
+	if jsnErr == nil {
+		switch jbt := jsonBod.(type) {
+		// most common
+		case map[string]interface{}:
+			//fmt.Printf("\n\n\n1st type\n\n\n")
+			xmj := jsonBod.(map[string]interface{})
+			buff := ApplyXssPolicy(xmj)
+			err := SetRequestBody(c, buff)
+			if err != nil {
+				//fmt.Println("Set request body failed")
+				return errors.New("Set Request.Body Error")
+			}
+		// a multi records request
+		case []interface{}:
+			var multiRec bytes.Buffer
+			multiRec.WriteString(`[`)
+			for _, n := range jbt {
+				//fmt.Printf("Item: %v= %v\n", i, n)
+				xmj := n.(map[string]interface{})
+				buff := ApplyXssPolicy(xmj)
+				multiRec.WriteString(buff.String() + `,`)
+			}
+			multiRec.Truncate(multiRec.Len() - 1) // remove last ','
+			multiRec.WriteString(`]`)
+			err := SetRequestBody(c, multiRec)
+			if err != nil {
+				//fmt.Println("Set request body failed")
+				return errors.New("Set Request.Body Error")
+			}
+		default:
+			//var r = reflect.TypeOf(jbt) // debug type
+			//fmt.Printf("Unknown Type!:%v\n", r)
+			return errors.New("Unknown Content Type Received")
+		}
+
+	} else {
+		return errors.New("Error attempting to decode JSON")
+	}
 	return nil
 }
 
