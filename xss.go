@@ -30,10 +30,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	//"net/url"
 	//"html"
 	"io/ioutil"
 	//"net/url"
 	"github.com/microcosm-cc/bluemonday"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -189,19 +191,139 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 
 // XXX careful with file part uploads
 // just do basic fields - how to tell difference?
-func HandleMultiPartFormData(c *gin.Context) error {
+func HandleXFormEncoded(c *gin.Context) error {
 	fmt.Printf("%v", c.Query)
-	fmt.Printf("%v", c.Params)
+	fmt.Printf("%#v", c.Params)
+	fmt.Printf("%#v", c.PostForm)
+	// https://golang.org/src/net/http/request.go
+	//970          case ct == "application/x-www-form-urlencoded":
+	//971                  var reader io.Reader = r.Body
+	//972                  maxFormSize := int64(1<<63 - 1)
+	//973                  if _, ok := r.Body.(*maxBytesReader); !ok {
+	//974                          maxFormSize = int64(10 << 20) // 10 MB is a lot of text.
+	//975                          reader = io.LimitReader(r.Body, maxFormSize+1)
+	//976                  }
+	//977                  b, e := ioutil.ReadAll(reader)
+	//978                  if e != nil {
+	//979                          if err == nil {
+	//980                                  err = e
+	//981                          }
+	//982                          break
+	//983                  }
+	//984                  if int64(len(b)) > maxFormSize {
+	//985                          err = errors.New("http: POST too large")
+	//986                          return
+	//987                  }
+	//988                  vs, e = url.ParseQuery(string(b))
+	//989                  if err == nil {
+	//990                          err = e
+	//991                  }
+	return nil
+}
+
+// https://golang.org/src/net/http/request.go
+// 1056   func (r *Request) ParseMultipartForm(maxMemory int64) error {
+// XXX careful with file part uploads
+// just do basic fields - how to tell difference?
+func HandleMultiPartFormData(c *gin.Context) error {
+	////fmt.Printf("%v", c.Request.Body)
+	//fmt.Printf("%v", c.Query)
+	//fmt.Printf("%#v", c.Params)
+	//fmt.Printf("%#v", c.PostForm)
+	////fmt.Printf("%#v", c.MultipartForm)
+	////fmt.Printf("%#v", c.Form)
+	//for param := range c.Params {
+	//	fmt.Printf("%v = %v\n\n", param, c.Params[param])
+	//}
+	////c.GetPostFormArray
+
+	//for key, value := range c.Keys {
+	//	fmt.Printf("POST %v = %v", key, value)
+	//}
+
+	//Content-Disposition: form-data; name="comment"
+	//
+	//>'>\"><img src=x onerror=alert(0)>
+	//--1
+
+	var reader io.Reader = c.Request.Body
+	maxFormSize := int64(10 << 20) // 10 MB is a lot of text.
+	reader = io.LimitReader(c.Request.Body, maxFormSize+1)
+	b, e := ioutil.ReadAll(reader)
+	if e != nil {
+		fmt.Printf("%v", e)
+		//break
+	}
+	//
+	// XXX see https://golang.org/src/mime/multipart/multipart_test.go
+	//
+
+	//fmt.Printf("%v", string(b))
+	p := bluemonday.StrictPolicy()
+	//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
+
+	//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(b))))
+	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(p.Sanitize(string(b)))))
+	//fmt.Printf("%v", ioutil.NopCloser(c.Request.Body))
 	fmt.Printf("%v", c.Request.Body)
+
+	//vs, ee := url.ParseQuery(string(b))
+	//if ee == nil {
+	//	fmt.Printf("%v", ee)
+	//}
+	//fmt.Printf("%v", vs)
+	//fmt.Printf("%#v", vs)
+	//fmt.Println("\n\n\n")
+	//for k, v := range vs["name"] {
+	//	//fmt.Printf("%v = %v\n\n", param, c.Params[param])
+	//	fmt.Printf("%v => %v\n\n", k, v)
+	//	//disposition, params, err := mime.ParseMediaType(`attachment;filename="foo.png"`)
+	//	//filename := params["filename"] // set to "foo.png"
+	//}
+
+	//fmt.Printf("%v", c.Request.Body)
 	//var mpFormData interface{}
 	//d := json.NewDecoder(c.Request.Body)
 	//d.UseNumber()
 	//jsnErr := d.Decode(&mpFormData)
 	////fmt.Printf("JSON BOD: %#v\n", jsonBod)
 
+	//func (p *Part) parseContentDisposition() {
+	//  v := p.Header.Get("Content-Disposition")
+	//  var err error
+	//  p.disposition, p.dispositionParams, err = mime.ParseMediaType(v)
+	//  if err != nil {
+	//    p.dispositionParams = emptyParams
+	//  }
+	//}
+
 	return nil
 
 }
+
+// import "mime"
+//         mType, parameters, err := mime.ParseMediaType(os.Args[1])
+//         if err != nil {
+//                 fmt.Println(err)
+//                 os.Exit(1)
+//         }
+//         fmt.Println("Media type : ", mType)
+//         for param := range parameters {
+//                 fmt.Printf("%v = %v\n\n", param, parameters[param])
+//         }
+//
+//
+//  disposition, params, err := mime.ParseMediaType(`attachment;filename="foo.png"`)
+//  if err != nil {
+//    panic(err)
+//  }
+//  fmt.Println("Disposition is", disposition, "and filename is", params["filename"])
+//
+//  disposition, params, err = mime.ParseMediaType(`attachment;filename*="UTF-8''fo%c3%b6.png"`)
+//  if err != nil {
+//    panic(err)
+//  }
+//  fmt.Println("Disposition is", disposition, "and filename is", params["filename"])
 
 func HandleJson(c *gin.Context) error {
 	var jsonBod interface{}
