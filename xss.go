@@ -222,13 +222,7 @@ func HandleXFormEncoded(c *gin.Context) error {
 	return nil
 }
 
-// https://golang.org/src/net/http/request.go
-// 1056   func (r *Request) ParseMultipartForm(maxMemory int64) error {
-// XXX careful with file part uploads
-// just do basic fields - how to tell difference?
 func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
-	// see https://golang.org/src/mime/multipart/multipart_test.go
-	//fmt.Printf("%v\n", c.Request.Body)
 	var ioreader io.Reader = c.Request.Body
 
 	boundary := ct_hdr[strings.Index(ct_hdr, "boundary=")+9 : len(ct_hdr)]
@@ -236,17 +230,13 @@ func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 	reader := multipart.NewReader(ioreader, boundary)
 
 	var multiPrtFrm bytes.Buffer
-	// arbitrary, make up some param limit - 100 max
+	// unknown, so make up some param limit - 100 max should be enough
 	for i := 0; i < 100; i++ {
 		part, err := reader.NextPart()
 		if err != nil {
 			//fmt.Println("didn't get a part")
 			break
 		}
-		//// skip files
-		//if part.FileName() != "" {
-		//	//fmt.Println("dont process files") //	continue
-		//}
 
 		var buf bytes.Buffer
 		n, err := io.Copy(&buf, part)
@@ -258,7 +248,6 @@ func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 			//fmt.Println("read %d bytes; expected >0", n)
 			return errors.New("error recreating Multipart form Request")
 		}
-		//fmt.Println("%v", part.FormName()) ; fmt.Printf("%v", buf.String())
 		// https://golang.org/src/mime/multipart/multipart_test.go line 230
 		multiPrtFrm.WriteString(`--` + boundary + "\r\n")
 		// dont sanitize file content
