@@ -243,11 +243,10 @@ func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 			//fmt.Println("didn't get a part")
 			break
 		}
-		// skip files
-		if part.FileName() != "" {
-			//fmt.Println("dont process files")
-			continue
-		}
+		//// skip files
+		//if part.FileName() != "" {
+		//	//fmt.Println("dont process files") //	continue
+		//}
 
 		var buf bytes.Buffer
 		n, err := io.Copy(&buf, part)
@@ -262,10 +261,23 @@ func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 		//fmt.Println("%v", part.FormName()) ; fmt.Printf("%v", buf.String())
 		// https://golang.org/src/mime/multipart/multipart_test.go line 230
 		multiPrtFrm.WriteString(`--` + boundary + "\r\n")
-		multiPrtFrm.WriteString(`Content-Disposition: form-data; name="` + part.FormName() + "\";\r\n\r\n")
-		p := bluemonday.StrictPolicy()
-		//multiPrtFrm.WriteString(buf.String() + "\r\n")
-		multiPrtFrm.WriteString(p.Sanitize(buf.String()) + "\r\n")
+		// dont sanitize file content
+		if part.FileName() != "" {
+			fn := part.FileName()
+			mtype := part.Header.Get("Content-Type")
+			multiPrtFrm.WriteString(`Content-Disposition: form-data; name="` + part.FormName() + "\"; ")
+			multiPrtFrm.WriteString(`filename="` + fn + "\";\r\n")
+			// default to application/octet-stream
+			if mtype == "" {
+				mtype = `application/octet-stream`
+			}
+			multiPrtFrm.WriteString(`Content-Type: ` + mtype + "\r\n\r\n")
+			multiPrtFrm.WriteString(buf.String() + "\r\n")
+		} else {
+			multiPrtFrm.WriteString(`Content-Disposition: form-data; name="` + part.FormName() + "\";\r\n\r\n")
+			p := bluemonday.StrictPolicy()
+			multiPrtFrm.WriteString(p.Sanitize(buf.String()) + "\r\n")
+		}
 	}
 	multiPrtFrm.WriteString("--" + boundary + "--\r\n")
 
