@@ -227,143 +227,54 @@ func HandleXFormEncoded(c *gin.Context) error {
 // XXX careful with file part uploads
 // just do basic fields - how to tell difference?
 func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
-	//fmt.Printf("%v", c.Request.Body)
-	//fmt.Printf("%v", c.Query)
-	//fmt.Printf("%#v", c.Params)
-	//fmt.Printf("%#v", c.PostForm)
-	////fmt.Printf("%#v", c.MultipartForm)
-	////fmt.Printf("%#v", c.Form)
-	//for param := range c.Params {
-	//	fmt.Printf("%v = %v\n\n", param, c.Params[param])
-	//}
-	////c.GetPostFormArray
-
-	//for key, value := range c.Keys {
-	//	fmt.Printf("POST %v = %v", key, value)
-	//}
-
-	//Content-Disposition: form-data; name="comment"
-	//
-	//>'>\"><img src=x onerror=alert(0)>
-	//--1
-
+	// see https://golang.org/src/mime/multipart/multipart_test.go
+	//fmt.Printf("%v\n", c.Request.Body)
 	var ioreader io.Reader = c.Request.Body
-	//maxFormSize := int64(10 << 20) // 10 MB is a lot of text.
-	//reader = io.LimitReader(c.Request.Body, maxFormSize+1)
-	//b, e := ioutil.ReadAll(reader)
-	//if e != nil {
-	//	fmt.Printf("%v", e)
-	//	//break
-	//}
-	//
-	// XXX see https://golang.org/src/mime/multipart/multipart_test.go
-	//
-	//159
-	//------WebKitFormBoundaryAj6DtGD3NMY7dMLz
-	//Content-Disposition: form-data; name=&#34;null&#34;
-	//
-	//C:\fakepath\test_profile_img.jpg
-	//------WebKitFormBoundaryAj6DtGD3NMY7dMLz
-	//Content-Disposition: form-data; name=&#34;media&#34;; filename=&#34;test_profile_img.jpg&#34;
-	//Content-Type: image/jpeg
 
-	fmt.Printf("%v\n", ct_hdr)
 	boundary := ct_hdr[strings.Index(ct_hdr, "boundary=")+9 : len(ct_hdr)]
-	fmt.Printf("%v\n", boundary)
 
 	reader := multipart.NewReader(ioreader, boundary)
-	//buf := new(bytes.Buffer)
-	//part, err := reader.NextPart()
-	//if part == nil {
-	//	fmt.Printf("err")
-	//}
-	//if err != nil {
-	//	fmt.Printf("err")
-	//}
-	//_, err = io.Copy(buf, part)
-	//fmt.Printf("%v", buf.String())
-	for i := 0; i < 5; i++ {
+
+	var multiPrtFrm bytes.Buffer
+	// arbitrary, make up some param limit - 100 max
+	for i := 0; i < 100; i++ {
 		part, err := reader.NextPart()
 		if err != nil {
-			fmt.Println("didn't get a part")
+			//fmt.Println("didn't get a part")
+			break
 		}
+		// skip files
+		if part.FileName() != "" {
+			//fmt.Println("dont process files")
+			continue
+		}
+
 		var buf bytes.Buffer
 		n, err := io.Copy(&buf, part)
 		if err != nil {
-			fmt.Println("error reading part: %v\nread so far: %q", err, buf.String())
+			//fmt.Println("error reading part: %v\nread so far: %q", err, buf.String())
+			return err
 		}
 		if n <= 0 {
-			fmt.Println("read %d bytes; expected >0", n)
+			//fmt.Println("read %d bytes; expected >0", n)
+			return errors.New("error recreating Multipart form Request")
 		}
-		fmt.Printf("%v", buf.String())
+		//fmt.Println("%v", part.FormName()) ; fmt.Printf("%v", buf.String())
+		// https://golang.org/src/mime/multipart/multipart_test.go line 230
+		multiPrtFrm.WriteString(`--` + boundary + "\r\n")
+		multiPrtFrm.WriteString(`Content-Disposition: form-data; name="` + part.FormName() + "\";\r\n\r\n")
+		p := bluemonday.StrictPolicy()
+		//multiPrtFrm.WriteString(buf.String() + "\r\n")
+		multiPrtFrm.WriteString(p.Sanitize(buf.String()) + "\r\n")
 	}
+	multiPrtFrm.WriteString("--" + boundary + "--\r\n")
 
-	//////fmt.Printf("%v", string(b))
-	////p := bluemonday.StrictPolicy()
-	//////buff.WriteString(`"` + p.Sanitize(vv) + `",`)
+	//fmt.Println("MultiPartForm Out %v", multiPrtFrm.String())
 
-	//////c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(b))))
-	////c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(p.Sanitize(string(b)))))
-	//////fmt.Printf("%v", ioutil.NopCloser(c.Request.Body))
-	////fmt.Printf("%v", c.Request.Body)
-
-	//vs, ee := url.ParseQuery(string(b))
-	//if ee == nil {
-	//	fmt.Printf("%v", ee)
-	//}
-	//fmt.Printf("%v", vs)
-	//fmt.Printf("%#v", vs)
-	//fmt.Println("\n\n\n")
-	//for k, v := range vs["name"] {
-	//	//fmt.Printf("%v = %v\n\n", param, c.Params[param])
-	//	fmt.Printf("%v => %v\n\n", k, v)
-	//	//disposition, params, err := mime.ParseMediaType(`attachment;filename="foo.png"`)
-	//	//filename := params["filename"] // set to "foo.png"
-	//}
-
-	//fmt.Printf("%v", c.Request.Body)
-	//var mpFormData interface{}
-	//d := json.NewDecoder(c.Request.Body)
-	//d.UseNumber()
-	//jsnErr := d.Decode(&mpFormData)
-	////fmt.Printf("JSON BOD: %#v\n", jsonBod)
-
-	//func (p *Part) parseContentDisposition() {
-	//  v := p.Header.Get("Content-Disposition")
-	//  var err error
-	//  p.disposition, p.dispositionParams, err = mime.ParseMediaType(v)
-	//  if err != nil {
-	//    p.dispositionParams = emptyParams
-	//  }
-	//}
+	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(multiPrtFrm.String())))
 
 	return nil
-
 }
-
-// import "mime"
-//         mType, parameters, err := mime.ParseMediaType(os.Args[1])
-//         if err != nil {
-//                 fmt.Println(err)
-//                 os.Exit(1)
-//         }
-//         fmt.Println("Media type : ", mType)
-//         for param := range parameters {
-//                 fmt.Printf("%v = %v\n\n", param, parameters[param])
-//         }
-//
-//
-//  disposition, params, err := mime.ParseMediaType(`attachment;filename="foo.png"`)
-//  if err != nil {
-//    panic(err)
-//  }
-//  fmt.Println("Disposition is", disposition, "and filename is", params["filename"])
-//
-//  disposition, params, err = mime.ParseMediaType(`attachment;filename*="UTF-8''fo%c3%b6.png"`)
-//  if err != nil {
-//    panic(err)
-//  }
-//  fmt.Println("Disposition is", disposition, "and filename is", params["filename"])
 
 func HandleJson(c *gin.Context) error {
 	var jsonBod interface{}
