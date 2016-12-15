@@ -36,6 +36,7 @@ import (
 	//"net/url"
 	"github.com/microcosm-cc/bluemonday"
 	"io"
+	"mime/multipart"
 	"strconv"
 	"strings"
 )
@@ -177,7 +178,7 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 		} else if strings.Contains(ct_hdr, "multipart/form-data") {
 			fmt.Println("TODO handle multipart/form-data")
 
-			err := HandleMultiPartFormData(c)
+			err := HandleMultiPartFormData(c, ct_hdr)
 			if err != nil {
 				return err
 			}
@@ -225,8 +226,8 @@ func HandleXFormEncoded(c *gin.Context) error {
 // 1056   func (r *Request) ParseMultipartForm(maxMemory int64) error {
 // XXX careful with file part uploads
 // just do basic fields - how to tell difference?
-func HandleMultiPartFormData(c *gin.Context) error {
-	////fmt.Printf("%v", c.Request.Body)
+func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
+	//fmt.Printf("%v", c.Request.Body)
 	//fmt.Printf("%v", c.Query)
 	//fmt.Printf("%#v", c.Params)
 	//fmt.Printf("%#v", c.PostForm)
@@ -246,26 +247,65 @@ func HandleMultiPartFormData(c *gin.Context) error {
 	//>'>\"><img src=x onerror=alert(0)>
 	//--1
 
-	var reader io.Reader = c.Request.Body
-	maxFormSize := int64(10 << 20) // 10 MB is a lot of text.
-	reader = io.LimitReader(c.Request.Body, maxFormSize+1)
-	b, e := ioutil.ReadAll(reader)
-	if e != nil {
-		fmt.Printf("%v", e)
-		//break
-	}
+	var ioreader io.Reader = c.Request.Body
+	//maxFormSize := int64(10 << 20) // 10 MB is a lot of text.
+	//reader = io.LimitReader(c.Request.Body, maxFormSize+1)
+	//b, e := ioutil.ReadAll(reader)
+	//if e != nil {
+	//	fmt.Printf("%v", e)
+	//	//break
+	//}
 	//
 	// XXX see https://golang.org/src/mime/multipart/multipart_test.go
 	//
+	//159
+	//------WebKitFormBoundaryAj6DtGD3NMY7dMLz
+	//Content-Disposition: form-data; name=&#34;null&#34;
+	//
+	//C:\fakepath\test_profile_img.jpg
+	//------WebKitFormBoundaryAj6DtGD3NMY7dMLz
+	//Content-Disposition: form-data; name=&#34;media&#34;; filename=&#34;test_profile_img.jpg&#34;
+	//Content-Type: image/jpeg
 
-	//fmt.Printf("%v", string(b))
-	p := bluemonday.StrictPolicy()
-	//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
+	fmt.Printf("%v\n", ct_hdr)
+	boundary := ct_hdr[strings.Index(ct_hdr, "boundary=")+9 : len(ct_hdr)]
+	fmt.Printf("%v\n", boundary)
 
-	//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(b))))
-	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(p.Sanitize(string(b)))))
-	//fmt.Printf("%v", ioutil.NopCloser(c.Request.Body))
-	fmt.Printf("%v", c.Request.Body)
+	reader := multipart.NewReader(ioreader, boundary)
+	//buf := new(bytes.Buffer)
+	//part, err := reader.NextPart()
+	//if part == nil {
+	//	fmt.Printf("err")
+	//}
+	//if err != nil {
+	//	fmt.Printf("err")
+	//}
+	//_, err = io.Copy(buf, part)
+	//fmt.Printf("%v", buf.String())
+	for i := 0; i < 5; i++ {
+		part, err := reader.NextPart()
+		if err != nil {
+			fmt.Println("didn't get a part")
+		}
+		var buf bytes.Buffer
+		n, err := io.Copy(&buf, part)
+		if err != nil {
+			fmt.Println("error reading part: %v\nread so far: %q", err, buf.String())
+		}
+		if n <= 0 {
+			fmt.Println("read %d bytes; expected >0", n)
+		}
+		fmt.Printf("%v", buf.String())
+	}
+
+	//////fmt.Printf("%v", string(b))
+	////p := bluemonday.StrictPolicy()
+	//////buff.WriteString(`"` + p.Sanitize(vv) + `",`)
+
+	//////c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(string(b))))
+	////c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(p.Sanitize(string(b)))))
+	//////fmt.Printf("%v", ioutil.NopCloser(c.Request.Body))
+	////fmt.Printf("%v", c.Request.Body)
 
 	//vs, ee := url.ParseQuery(string(b))
 	//if ee == nil {
