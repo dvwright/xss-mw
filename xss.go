@@ -157,35 +157,22 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 		if ct_len > 1 && ct_hdr == "application/json" {
 			err := HandleJson(c)
 			if err != nil {
-				//fmt.Println("Set request body failed")
 				return err
 			}
 		} else if ct_hdr == "application/x-www-form-urlencoded" {
-			fmt.Println("TODO handle application/x-www-form-urlencoded")
-			for key, val := range c.Params {
-				fmt.Println(key)
-				fmt.Println(val)
+			err := HandleXFormEncoded(c)
+			if err != nil {
+				return err
 			}
-
-			// XXX careful with file part uploads
-			// just do basic fields - how to tell difference?
-			//
-			//err := HandleXFormEncoded(c)
-			//if err != nil {
-			//	//fmt.Println("Set request body failed")
-			//	return err
-			//}
 		} else if strings.Contains(ct_hdr, "multipart/form-data") {
-			fmt.Println("TODO handle multipart/form-data")
-
 			err := HandleMultiPartFormData(c, ct_hdr)
 			if err != nil {
 				return err
 			}
 		}
+
 	}
 	// if here, all should be well or nothing was actually done,
-	// like, if someone installed this but is not actually Posting JSON...
 	// either way return happily
 	return nil
 }
@@ -193,32 +180,45 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 // XXX careful with file part uploads
 // just do basic fields - how to tell difference?
 func HandleXFormEncoded(c *gin.Context) error {
-	fmt.Printf("%v", c.Query)
-	fmt.Printf("%#v", c.Params)
-	fmt.Printf("%#v", c.PostForm)
-	// https://golang.org/src/net/http/request.go
-	//970          case ct == "application/x-www-form-urlencoded":
-	//971                  var reader io.Reader = r.Body
-	//972                  maxFormSize := int64(1<<63 - 1)
-	//973                  if _, ok := r.Body.(*maxBytesReader); !ok {
-	//974                          maxFormSize = int64(10 << 20) // 10 MB is a lot of text.
-	//975                          reader = io.LimitReader(r.Body, maxFormSize+1)
-	//976                  }
-	//977                  b, e := ioutil.ReadAll(reader)
-	//978                  if e != nil {
-	//979                          if err == nil {
-	//980                                  err = e
-	//981                          }
-	//982                          break
-	//983                  }
-	//984                  if int64(len(b)) > maxFormSize {
-	//985                          err = errors.New("http: POST too large")
-	//986                          return
-	//987                  }
-	//988                  vs, e = url.ParseQuery(string(b))
-	//989                  if err == nil {
-	//990                          err = e
-	//991                  }
+	fmt.Println("TODO handle application/x-www-form-urlencoded")
+	//dump, _ := httputil.DumpRequest(c.Request, true)
+	//fmt.Printf("%q", dump)
+
+	//fmt.Println("%v", c.Request)
+	//fmt.Println("%#v", c.Request.Body)
+	//fmt.Println("%v", c.Request.URL.Query())
+
+	//fmt.Println("%#v", c.PostForm)
+	//fmt.Println("%v", c.PostForm("user"))
+
+	// https://golang.org/src/net/http/httputil/dump.go
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(c.Request.Body); err != nil {
+		return err
+	}
+	//comment=%3E%27%3E%5C%22%3E%3Cimg+src%3Dx+onerror%3Dalert%280%29%3E&cre_at=1481017167&email=testUser%40example.com&flt=2.345&id=2&password=%21%40%24%25%5EASDF&user=TestUser
+	fmt.Println("%v", buf.String())
+	//https://gobyexample.com/url-parsing
+
+	// http://learntogoogleit.com/post/56844473263/url-path-to-array-in-golang
+
+	//maxFormSize := int64(1<<63 - 1)
+	//if _, ok := c.Request.Body.(*maxBytesReader); !ok {
+	//	maxFormSize = int64(10 << 20) // 10 MB is a lot of text.
+	//	reader = io.LimitReader(r.Body, maxFormSize+1)
+	//}
+	//b, e := ioutil.ReadAll(reader)
+	//if e != nil {
+	//	fmt.Println("%v", e)
+	//	return e
+	//}
+	//fmt.Println("%v", string(b))
+	//vs, err := url.ParseQuery(string(b))
+	//if err != nil {
+	//	fmt.Println("%v", err)
+	//	return err
+	//}
+	//fmt.Println("%v", vs)
 	return nil
 }
 
@@ -244,6 +244,7 @@ func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 			//fmt.Println("error reading part: %v\nread so far: %q", err, buf.String())
 			return err
 		}
+		// XXX needed?
 		if n <= 0 {
 			//fmt.Println("read %d bytes; expected >0", n)
 			return errors.New("error recreating Multipart form Request")

@@ -18,8 +18,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +84,27 @@ func newServer() *gin.Engine {
 			return
 		}
 		c.JSON(201, user)
+	})
+
+	r.POST("/user_post", func(c *gin.Context) {
+		id, _ := strconv.Atoi(c.PostForm("id"))
+		user := c.PostForm("user")
+		flt, _ := strconv.ParseFloat(c.PostForm("flt"), 64)
+		email := c.PostForm("email")
+		password := c.PostForm("password")
+		comment := c.PostForm("comment")
+		cre_at, _ := strconv.ParseInt(c.PostForm("cre_at"), 10, 64)
+
+		usr := User{
+			Id:       id,
+			User:     user,
+			Flt:      flt,
+			Email:    email,
+			Password: password,
+			Comment:  comment,
+			CreAt:    cre_at,
+		}
+		c.JSON(200, usr)
 	})
 
 	return r
@@ -324,8 +347,8 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
 
-	fmt.Println("TODO TestXssFiltersXFormEncoded")
-	t.Skip()
+	//fmt.Println("TODO TestXssFiltersXFormEncoded")
+	//t.Skip()
 
 	s := newServer()
 
@@ -335,38 +358,29 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
 	cmnt := `>'>\"><img src=x onerror=alert(0)>`
 	cre_at := "1481017167"
 
-	Oparams := map[string]string{
-		"id":       "2",
-		"user":     user,
-		"flt":      "2.345",
-		"email":    email,
-		"password": password,
-		"comment":  cmnt,
-		"cre_at":   cre_at,
-	}
+	values := url.Values{}
+	values.Set("id", "2")
+	values.Add("user", user)
+	values.Add("flt", "2.345")
+	values.Add("email", email)
+	values.Add("password", password)
+	values.Add("comment", cmnt)
+	values.Add("cre_at", cre_at)
 
-	body := new(bytes.Buffer)
-	writer := multipart.NewWriter(body)
-	for key, val := range Oparams {
-		_ = writer.WriteField(key, val)
-	}
-	err := writer.Close()
+	req, err := http.NewRequest(
+		"POST",
+		"/user_post",
+		strings.NewReader(values.Encode()),
+	)
 	assert.Nil(t, err)
-
-	boundary := writer.Boundary()
-	close_buf := bytes.NewBufferString(fmt.Sprintf("\r\n--%s--\r\n", boundary))
-
-	req, perr := http.NewRequest("POST", "/user", body)
-	assert.Nil(t, perr)
-	// Set headers for multipart, and Content Length
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	//
-	req.ContentLength = int64(body.Len()) + int64(close_buf.Len())
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	//req.ContentLength = int64(body.Len()) + int64(close_buf.Len())
 
 	resp := httptest.NewRecorder()
 	s.ServeHTTP(resp, req)
 	//fmt.Println(resp.Body.String())
-	assert.Equal(t, 201, resp.Code)
+	assert.Equal(t, 200, resp.Code)
 	expStr := `{
             "id":2,
             "flt":2.345,
