@@ -374,8 +374,6 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
 	)
 	assert.Nil(t, err)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	//req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	//req.ContentLength = int64(body.Len()) + int64(close_buf.Len())
 
 	resp := httptest.NewRecorder()
 	s.ServeHTTP(resp, req)
@@ -392,7 +390,7 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
         }`
 
 	//cmnt_clnd := `>'>\\\"><img src=x onerror=alert(0)>` // left intact
-	cmnt_clnd := `&gt;&#39;&gt;&#34;&gt;` //i.e. >'>">
+	cmnt_clnd := `&gt;&#39;&gt;\\&#34;&gt;`
 
 	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
 	assert.JSONEq(t, expect, resp.Body.String())

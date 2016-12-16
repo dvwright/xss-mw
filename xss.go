@@ -30,7 +30,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	//"net/url"
+	"net/url"
 	//"html"
 	"io/ioutil"
 	//"net/url"
@@ -180,16 +180,9 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 // XXX careful with file part uploads
 // just do basic fields - how to tell difference?
 func HandleXFormEncoded(c *gin.Context) error {
-	fmt.Println("TODO handle application/x-www-form-urlencoded")
+	//fmt.Println("TODO handle application/x-www-form-urlencoded")
 	//dump, _ := httputil.DumpRequest(c.Request, true)
 	//fmt.Printf("%q", dump)
-
-	//fmt.Println("%v", c.Request)
-	//fmt.Println("%#v", c.Request.Body)
-	//fmt.Println("%v", c.Request.URL.Query())
-
-	//fmt.Println("%#v", c.PostForm)
-	//fmt.Println("%v", c.PostForm("user"))
 
 	// https://golang.org/src/net/http/httputil/dump.go
 	var buf bytes.Buffer
@@ -197,28 +190,29 @@ func HandleXFormEncoded(c *gin.Context) error {
 		return err
 	}
 	//comment=%3E%27%3E%5C%22%3E%3Cimg+src%3Dx+onerror%3Dalert%280%29%3E&cre_at=1481017167&email=testUser%40example.com&flt=2.345&id=2&password=%21%40%24%25%5EASDF&user=TestUser
-	fmt.Println("%v", buf.String())
-	//https://gobyexample.com/url-parsing
+	//fmt.Println("%v", buf.String())
 
-	// http://learntogoogleit.com/post/56844473263/url-path-to-array-in-golang
+	m, uerr := url.ParseQuery(buf.String())
+	if uerr != nil {
+		return uerr
+	}
 
-	//maxFormSize := int64(1<<63 - 1)
-	//if _, ok := c.Request.Body.(*maxBytesReader); !ok {
-	//	maxFormSize = int64(10 << 20) // 10 MB is a lot of text.
-	//	reader = io.LimitReader(r.Body, maxFormSize+1)
-	//}
-	//b, e := ioutil.ReadAll(reader)
-	//if e != nil {
-	//	fmt.Println("%v", e)
-	//	return e
-	//}
-	//fmt.Println("%v", string(b))
-	//vs, err := url.ParseQuery(string(b))
-	//if err != nil {
-	//	fmt.Println("%v", err)
-	//	return err
-	//}
-	//fmt.Println("%v", vs)
+	p := bluemonday.StrictPolicy()
+
+	var bq bytes.Buffer
+	for k, v := range m {
+		//fmt.Println(k, " => ", v)
+		bq.WriteString(k)
+		bq.WriteByte('=')
+		//bq.WriteString(url.QueryEscape(v[0]))
+		bq.WriteString(url.QueryEscape(p.Sanitize(v[0])))
+		bq.WriteByte('&')
+	}
+	bq.Truncate(bq.Len() - 1) // remove last '&'
+	bodOut := bq.String()
+
+	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bodOut)))
+
 	return nil
 }
 
