@@ -25,6 +25,9 @@ package xss
 //
 // NOTE: This is Beta level code with minimal real world usage, use at your own risk - not production ready.
 //
+
+// NOTE: There is plenty of inefficient code which can and will be improved
+
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
@@ -47,13 +50,13 @@ import (
 // TODO - add features/configuration
 type XssMw struct {
 	// List of tables to not filter any fields on
-	TableWhitelist []byte
+	TablesToSkip []string
 
 	// List of fields to not filter . i.e. created_on, created_at, etc
-	FieldWhitelist []byte
+	FieldsToSkip []string
 
 	// Hash of table->field combinations to skip filtering on
-	TableFieldWhitelist []byte
+	TableFieldRelationToSkip map[string]string
 
 	// Config options - how much filtering? Regular | Lite | Custom
 
@@ -66,6 +69,10 @@ type XssMwJson map[string]interface{}
 
 // XssMw implements the Gin Middleware interface.
 func (mw *XssMw) RemoveXss() gin.HandlerFunc {
+
+	// TODO - should make this overwriteable in case user does not want any safe fields
+	mw.FieldsToSkip = append(mw.FieldsToSkip, "password")
+
 	return func(c *gin.Context) {
 		mw.callRemoveXss(c)
 		return
@@ -83,6 +90,7 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 		return
 	}
 
+	// ok, pass to next handler
 	c.Next()
 }
 
@@ -139,17 +147,17 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 		//}
 
 		if ct_len > 1 && ct_hdr == "application/json" {
-			err := HandleJson(c)
+			err := mw.HandleJson(c)
 			if err != nil {
 				return err
 			}
 		} else if ct_hdr == "application/x-www-form-urlencoded" {
-			err := HandleXFormEncoded(c)
+			err := mw.HandleXFormEncoded(c)
 			if err != nil {
 				return err
 			}
 		} else if strings.Contains(ct_hdr, "multipart/form-data") {
-			err := HandleMultiPartFormData(c, ct_hdr)
+			err := mw.HandleMultiPartFormData(c, ct_hdr)
 			if err != nil {
 				return err
 			}
@@ -175,7 +183,7 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 //     &user=TestUser
 // has not been tested on file/data uploads
 // NOTE: any form field - param key named 'password' is skipped (not sanitized)
-func HandleXFormEncoded(c *gin.Context) error {
+func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 	//fmt.Println("TODO handle application/x-www-form-urlencoded")
 	//dump, _ := httputil.DumpRequest(c.Request, true)
 	//fmt.Printf("%q", dump)
@@ -253,7 +261,8 @@ func HandleXFormEncoded(c *gin.Context) error {
 //2
 //--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909--
 //
-func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
+// NOTE: form-data name 'password' is skipped (not sanitized)
+func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 	var ioreader io.Reader = c.Request.Body
 
 	boundary := ct_hdr[strings.Index(ct_hdr, "boundary=")+9 : len(ct_hdr)]
@@ -297,7 +306,11 @@ func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 		} else {
 			multiPrtFrm.WriteString(`Content-Disposition: form-data; name="` + part.FormName() + "\";\r\n\r\n")
 			p := bluemonday.StrictPolicy()
-			multiPrtFrm.WriteString(p.Sanitize(buf.String()) + "\r\n")
+			if "password" == part.FormName() {
+				multiPrtFrm.WriteString(buf.String() + "\r\n")
+			} else {
+				multiPrtFrm.WriteString(p.Sanitize(buf.String()) + "\r\n")
+			}
 		}
 	}
 	multiPrtFrm.WriteString("--" + boundary + "--\r\n")
@@ -332,7 +345,7 @@ func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 //    ...
 // }
 // NOTE: param key named 'password' is skipped (not sanitized)
-func HandleJson(c *gin.Context) error {
+func (mw *XssMw) HandleJson(c *gin.Context) error {
 	var jsonBod interface{}
 	d := json.NewDecoder(c.Request.Body)
 	d.UseNumber()
@@ -345,8 +358,8 @@ func HandleJson(c *gin.Context) error {
 		case map[string]interface{}:
 			//fmt.Printf("\n\n\n1st type\n\n\n")
 			xmj := jsonBod.(map[string]interface{})
-			buff := ApplyXssPolicy(xmj)
-			err := SetRequestBody(c, buff)
+			buff := mw.ApplyXssPolicyJson(xmj)
+			err := mw.SetRequestBodyJson(c, buff)
 			if err != nil {
 				//fmt.Println("Set request body failed")
 				return errors.New("Set Request.Body Error")
@@ -358,12 +371,12 @@ func HandleJson(c *gin.Context) error {
 			for _, n := range jbt {
 				//fmt.Printf("Item: %v= %v\n", i, n)
 				xmj := n.(map[string]interface{})
-				buff := ApplyXssPolicy(xmj)
+				buff := mw.ApplyXssPolicyJson(xmj)
 				multiRec.WriteString(buff.String() + `,`)
 			}
 			multiRec.Truncate(multiRec.Len() - 1) // remove last ','
 			multiRec.WriteString(`]`)
-			err := SetRequestBody(c, multiRec)
+			err := mw.SetRequestBodyJson(c, multiRec)
 			if err != nil {
 				//fmt.Println("Set request body failed")
 				return errors.New("Set Request.Body Error")
@@ -381,7 +394,7 @@ func HandleJson(c *gin.Context) error {
 }
 
 // encode processed body back to json and re set http request body
-func SetRequestBody(c *gin.Context, buff bytes.Buffer) error {
+func (mw *XssMw) SetRequestBodyJson(c *gin.Context, buff bytes.Buffer) error {
 	// XXX clean up - probably don't need to convert to string
 	// only to convert back to NewBuffer for NopCloser
 	bodOut := buff.String()
@@ -401,14 +414,12 @@ func SetRequestBody(c *gin.Context, buff bytes.Buffer) error {
 	return nil
 }
 
-// TODO change method signature - func (xmj XssMwJson) ApplyXssPolicy(bytes.Buffer) {
-
 // De constructs the http request body
 // removes undesirable content
 // keep the good content to construct and return cleaned http request
 // takes arg map[string]interface{} and a bluemonday Policy
 // returns bytes.Buffer
-func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
+func (mw *XssMw) ApplyXssPolicyJson(xmj XssMwJson) bytes.Buffer {
 	//fmt.Printf("JSON BOD: %#v\n", xmj)
 
 	var buff bytes.Buffer
@@ -427,12 +438,16 @@ func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
 		buff.WriteString(`"` + k + `":`)
 
 		// TODO implement config passing fields to skip
+		//for _, v := range mw.FieldsToSkip {
+		//fmt.Printf(v)
+		//if string(k) == v {
 		if string(k) == "password" {
 			// argh, work needed here - for now - assume string
 			//fmt.Println(k, "is string", v)
 			buff.WriteString(`"` + fmt.Sprintf("%s", v) + `",`)
 			continue
 		}
+		//}
 
 		switch vv := v.(type) { // FYI, JSON data is string or float
 		case string:

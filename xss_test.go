@@ -119,7 +119,7 @@ func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {
 
 	user := "TestUser"
 	email := "testUser@example.com"
-	password := "!@$%^ASDF"
+	password := "!@$%^ASDF<html>"
 	cmnt := `<img src=x onerror=alert(0)>`
 	cre_at := "1481017167"
 	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
@@ -155,7 +155,7 @@ func TestKeepsValuesStripsHtmlOnPut(t *testing.T) {
 
 	user := "TestUser"
 	email := "testUser@example.com"
-	password := "!@$%^ASDF"
+	password := "!@$%^ASDF<html>"
 	cmnt := `>'>\"><img src=x onerror=alert(0)>`
 	cre_at := "1481017167"
 	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
@@ -190,7 +190,7 @@ func TestXssSkippedOnNoContentLength(t *testing.T) {
 
 	user := "TestUser"
 	email := "testUser@example.com"
-	password := "!@$%^ASDF"
+	password := "!@$%^ASDF<html>"
 	cmnt := `<img src=x onerror=alert(0)>`
 	cre_at := "1481017167"
 	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
@@ -284,7 +284,7 @@ func TestXssFiltersMultiPartFormData(t *testing.T) {
 
 	user := "TestUser"
 	email := "testUser@example.com"
-	password := "!@$%^ASDF"
+	password := "!@$%^ASDF<html>"
 	cmnt := `>'>\"><img src=x onerror=alert(0)>`
 	cre_at := "1481017167"
 
@@ -354,7 +354,7 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
 
 	user := "TestUser"
 	email := "testUser@example.com"
-	password := "!@$%^ASDF"
+	password := "!@$%^ASDF<html>"
 	cmnt := `>'>\"><img src=x onerror=alert(0)>`
 	cre_at := "1481017167"
 
@@ -415,7 +415,7 @@ func TestKeepsHeadersIntact(t *testing.T) {
 
 	user := "TestUser"
 	email := "testUser@example.com"
-	password := "!@$%^ASDF"
+	password := "!@$%^ASDF<html>"
 	cmnt := `<img src=x onerror=alert(0)>`
 	cre_at := "1481017167"
 	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
