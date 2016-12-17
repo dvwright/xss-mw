@@ -5,12 +5,15 @@
 package xss
 
 // XssMw provides an auto remove XSS from all submitted user input.
-// It's only applied on POST and PUT Requests.
+// It's applied on POST and PUT Requests only.
 //
-// NOTE: This middleware currently only supports JSON requests - Content-Type application/json
+// We currently support three Request types:
+// JSON requests - Content-Type application/json
+// Form Encoded - Content-Type application/x-www-form-urlencoded
+// Multipart Form Data - Content-Type multipart/form-data
 //
-// it's highly configurable and uses HTML sanitizer https://github.com/microcosm-cc/bluemonday
-// for filtering.  It currently uses the strictest policy StrictPolicy()
+// XSS filtering is performed by HTML sanitizer https://github.com/microcosm-cc/bluemonday
+// The default uses the strictest policy - StrictPolicy()
 //
 //[TODO - how to expose bluemonday?]
 //
@@ -20,7 +23,7 @@ package xss
 // Pros: data integrity
 // Cons: XSS exploits still present
 //
-// NOTE: This is Beta level code with minimal usage and currently no features, it could and hopefully be improved.
+// NOTE: This is Beta level code with minimal real world usage, use at your own risk - not production ready.
 //
 import (
 	"errors"
@@ -83,6 +86,8 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	c.Next()
 }
 
+// TODO refactor
+
 // Receives an http request object, processes the body, removing html and returns the request.
 // it passes through the headers (and other parts of the request) untouched.
 //
@@ -91,27 +96,6 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 //
 // Request Method must be "POST" or "PUT"
 //
-// The three types of data handled.
-//
-// 1st type filter - most common
-//map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
-//
-// 2nd type an id with associated ids in array
-// map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
-// NOTE changes from ["1", "4", "8"] to [1,4,8]
-//
-// 3rd type an "array of records"
-// []interface {}{
-//    map[string]interface {}{"name":"asd", "url":"/data/1/as",
-//                            "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
-//                            "fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
-//                            "updated_at":"1480791630", "status":"NEW",
-//                            "updated_by":"537", "created_at":"1480450694"},
-//    map[string]interface {}{"name":"asd2", "url":"/data/2/as", etc... },
-//    map[string]interface {}{"name":"asd3", "url":"/data/3/as", etc... },
-//    ...
-// }
-// TODO refactor
 func (mw *XssMw) XssRemove(c *gin.Context) error {
 	//dump, derr := httputil.DumpRequest(c.Request, true)
 	//fmt.Print(derr)
@@ -177,8 +161,20 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 	return nil
 }
 
-// XXX careful with file part uploads
+// XXX file part uploads?
 // just do basic fields - how to tell difference?
+
+// Handles Content-Type "application/x-www-form-urlencoded"
+// Has been tested only with basic param=value form fields
+// i.e comment=<img src=x onerror=alert(0)>
+//     &cre_at=1481017167
+//     &email=testUser@example.com
+//     &flt=2.345
+//     &id=2
+//     &password=TestPass
+//     &user=TestUser
+// has not been tested on file/data uploads
+// NOTE: any form field - param key named 'password' is skipped (not sanitized)
 func HandleXFormEncoded(c *gin.Context) error {
 	//fmt.Println("TODO handle application/x-www-form-urlencoded")
 	//dump, _ := httputil.DumpRequest(c.Request, true)
@@ -204,8 +200,11 @@ func HandleXFormEncoded(c *gin.Context) error {
 		//fmt.Println(k, " => ", v)
 		bq.WriteString(k)
 		bq.WriteByte('=')
-		//bq.WriteString(url.QueryEscape(v[0]))
-		bq.WriteString(url.QueryEscape(p.Sanitize(v[0])))
+		if k == "password" { // dont saniitize password field
+			bq.WriteString(url.QueryEscape(v[0]))
+		} else {
+			bq.WriteString(url.QueryEscape(p.Sanitize(v[0])))
+		}
 		bq.WriteByte('&')
 	}
 	bq.Truncate(bq.Len() - 1) // remove last '&'
@@ -216,6 +215,44 @@ func HandleXFormEncoded(c *gin.Context) error {
 	return nil
 }
 
+// Handles Content-Type "multipart/form-data"
+// skips sanitizing if file upload
+// i.e. Content-Disposition: form-data; name="" filename=""
+// tries to determine Content-type for form data file upload, defaults
+// to application/octet-stream if unknown
+// handles basic form field POST request
+// i.e:
+//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//Content-Disposition: form-data; name="flt"
+//
+//2.345
+//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//Content-Disposition: form-data; name="user"
+//
+//TestUser
+//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//Content-Disposition: form-data; name="email"
+//
+//testUser@example.com
+//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//281         }
+//Content-Disposition: form-data; name="password"
+//
+//!@$%^ASDF
+//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//Content-Disposition: form-data; name="comment"
+//
+//&gt;&#39;&gt;\&#34;&gt;
+//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//Content-Disposition: form-data; name="cre_at"
+//
+//1481017167
+//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//Content-Disposition: form-data; name="id"
+//
+//2
+//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909--
+//
 func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 	var ioreader io.Reader = c.Request.Body
 
@@ -272,6 +309,29 @@ func HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 	return nil
 }
 
+// Handles request Content-Type = application/json
+//
+// The three types of data handled.
+//
+// 1st type filter - basic key:value - most common
+//map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
+//
+// 2nd type an id with associated ids list
+// map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
+// NOTE changes from ["1", "4", "8"] to [1,4,8]
+//
+// 3rd type an "array of records"
+// []interface {}{
+//    map[string]interface {}{"name":"asd", "url":"/data/1/as",
+//                            "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
+//                            "fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
+//                            "updated_at":"1480791630", "status":"NEW",
+//                            "updated_by":"537", "created_at":"1480450694"},
+//    map[string]interface {}{"name":"asd2", "url":"/data/2/as", etc... },
+//    map[string]interface {}{"name":"asd3", "url":"/data/3/as", etc... },
+//    ...
+// }
+// NOTE: param key named 'password' is skipped (not sanitized)
 func HandleJson(c *gin.Context) error {
 	var jsonBod interface{}
 	d := json.NewDecoder(c.Request.Body)
@@ -341,12 +401,13 @@ func SetRequestBody(c *gin.Context, buff bytes.Buffer) error {
 	return nil
 }
 
+// TODO change method signature - func (xmj XssMwJson) ApplyXssPolicy(bytes.Buffer) {
+
 // De constructs the http request body
 // removes undesirable content
 // keep the good content to construct and return cleaned http request
 // takes arg map[string]interface{} and a bluemonday Policy
 // returns bytes.Buffer
-// TODO change method signature - func (xmj XssMwJson) ApplyXssPolicy(bytes.Buffer) {
 func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
 	//fmt.Printf("JSON BOD: %#v\n", xmj)
 
@@ -414,8 +475,9 @@ func ApplyXssPolicy(xmj XssMwJson) bytes.Buffer {
 }
 
 // TODO
-// add feature to accept all content on filter on Response instead of Request
+// add feature to accept all content in Request and filter out on Response
 // NOTE: I don't know how to achieve this yet... will something like this help?
+// gin help said call Next first to capture Response
 //func ConstructRequest(next http.Handler) http.Handler {
 //	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 //		fmt.Println(r.Method, "-", r.RequestURI)
