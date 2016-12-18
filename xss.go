@@ -32,11 +32,11 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	//"net/http/httputil" // debugging
-	//"reflect" // debugging type
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	//"reflect" // debugging type
 	//"html"
 	"io/ioutil"
 	//"net/url"
@@ -111,7 +111,10 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 
 // TODO - use reflection to just call method name passed
 // http://stackoverflow.com/questions/8103617/call-a-struct-and-its-method-by-name-in-go
+// http://stackoverflow.com/questions/33006628/how-to-call-method-of-another-package-from-string-method-name-in-go
 func (mw *XssMw) GetBlueMondayPolicy() *bluemonday.Policy {
+	//return reflect.ValueOf(&mw).MethodByName(mw.BmPolicy).Call([]reflect.Value{})
+
 	if mw.BmPolicy == "StrictPolicy" {
 		return bluemonday.StrictPolicy()
 	} else if mw.BmPolicy == "UGCPolicy" {
