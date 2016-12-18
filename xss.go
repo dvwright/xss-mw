@@ -17,7 +17,7 @@ package xss
 //
 //[TODO - how to expose bluemonday?]
 //
-// TODO
+// TODO - filter on Response not Request -> r.Use(xss.FilterXss())
 // add option to pass through XSS to the database and filter out only on the Response.
 // - in other words - data would be stored in the database as it was submitted
 // Pros: data integrity
@@ -49,20 +49,25 @@ import (
 
 // TODO - add features/configuration
 type XssMw struct {
-	// List of tables to not filter any fields on
-	TablesToSkip []string
-
-	// List of fields to not filter . i.e. created_on, created_at, etc
+	// List of fields to not filter. i.e. password, created_on, created_at, etc
+	// password is set to skip by the system
 	FieldsToSkip []string
 
+	// TODO: need more granular skipping...
+	// List of tables to not filter any fields on
+	// how would you know this, coming from front end forms/params?
+	//TablesToSkip []string
+
 	// Hash of table->field combinations to skip filtering on
-	TableFieldRelationToSkip map[string]string
+	//TableFieldRelationToSkip map[string]string
 
-	// Config options - how much filtering? Regular | Lite | Custom
-
-	//PayloadFunc func(userID string) map[string]interface{}
-	// User can define own Unauthorized func.
-	//Unauthorized func(*gin.Context, int, string)
+	// Bluemonday comes with two default policies
+	// Two options StrictPolicy // the default
+	//             UGCPolicy
+	// or you can specify you own policy
+	// define it somewhere in your package so that you can call it here
+	// see https://github.com/microcosm-cc/bluemonday/blob/master/policies.go
+	BmPolicy string
 }
 
 type XssMwJson map[string]interface{}
@@ -82,6 +87,16 @@ func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 // call to do removal and pass to next handler
 // bails if really bad stuff happens
 func (mw *XssMw) callRemoveXss(c *gin.Context) {
+	// Bluemonday Policy
+	if mw.BmPolicy == "" {
+		mw.BmPolicy = "StrictPolicy"
+		// wrong... needs custom policy set
+	} else if mw.BmPolicy != "StrictPolicy" || mw.BmPolicy != "UGCPolicy" {
+		fmt.Println("BlueMondy Policy setting is incorrect!")
+		c.Abort()
+		return
+	}
+
 	err := mw.XssRemove(c)
 
 	if err != nil {
@@ -92,6 +107,17 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 
 	// ok, pass to next handler
 	c.Next()
+}
+
+// TODO - use reflection to just call method name passed
+// http://stackoverflow.com/questions/8103617/call-a-struct-and-its-method-by-name-in-go
+func (mw *XssMw) GetBlueMondayPolicy() *bluemonday.Policy {
+	if mw.BmPolicy == "StrictPolicy" {
+		return bluemonday.StrictPolicy()
+	} else if mw.BmPolicy == "UGCPolicy" {
+		return bluemonday.UGCPolicy()
+	}
+	return bluemonday.StrictPolicy()
 }
 
 // TODO refactor
@@ -201,16 +227,25 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 		return uerr
 	}
 
-	p := bluemonday.StrictPolicy()
+	p := mw.GetBlueMondayPolicy()
 
 	var bq bytes.Buffer
 	for k, v := range m {
 		//fmt.Println(k, " => ", v)
 		bq.WriteString(k)
 		bq.WriteByte('=')
-		if k == "password" { // dont saniitize password field
-			bq.WriteString(url.QueryEscape(v[0]))
-		} else {
+
+		// do fields to skip
+		var fndFld bool = false
+		for _, fts := range mw.FieldsToSkip {
+			if k == fts {
+				// dont saniitize these fields
+				bq.WriteString(url.QueryEscape(v[0]))
+				fndFld = true
+				break
+			}
+		}
+		if !fndFld {
 			bq.WriteString(url.QueryEscape(p.Sanitize(v[0])))
 		}
 		bq.WriteByte('&')
@@ -425,11 +460,7 @@ func (mw *XssMw) ApplyXssPolicyJson(xmj XssMwJson) bytes.Buffer {
 	var buff bytes.Buffer
 	buff.WriteString(`{`)
 
-	// TODO should be passed in to method
-	// needs to be configurable - set in passed struct
-	// right now it's strict mode or the highway...
-	//p := bluemonday.UGCPolicy()
-	p := bluemonday.StrictPolicy()
+	p := mw.GetBlueMondayPolicy()
 
 	m := xmj //m := jsonBod.(map[string]interface{})
 	for k, v := range m {
@@ -437,17 +468,18 @@ func (mw *XssMw) ApplyXssPolicyJson(xmj XssMwJson) bytes.Buffer {
 
 		buff.WriteString(`"` + k + `":`)
 
-		// TODO implement config passing fields to skip
-		//for _, v := range mw.FieldsToSkip {
-		//fmt.Printf(v)
-		//if string(k) == v {
-		if string(k) == "password" {
-			// argh, work needed here - for now - assume string
-			//fmt.Println(k, "is string", v)
-			buff.WriteString(`"` + fmt.Sprintf("%s", v) + `",`)
+		// do fields to skip
+		var fndFld bool = false
+		for _, fts := range mw.FieldsToSkip {
+			if string(k) == fts {
+				buff.WriteString(`"` + fmt.Sprintf("%s", v) + `",`)
+				fndFld = true
+				break
+			}
+		}
+		if fndFld {
 			continue
 		}
-		//}
 
 		switch vv := v.(type) { // FYI, JSON data is string or float
 		case string:
