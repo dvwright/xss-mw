@@ -36,19 +36,10 @@ type User struct {
 }
 
 // Test as Gin Middleware
-//func newServer(options Options) *gin.Engine {
-func newServer() *gin.Engine {
+func newServer(xssMdlwr XssMw) *gin.Engine {
+
 	r := gin.Default()
 
-	//r.Use(Secure(options))
-	//// the xss middleware
-	//xssMdlwr := &xss.XssMw{
-	////TableWhitelist: []byte,
-	////FieldWhitelist []byte,
-	////TableFieldWhitelist []byte,
-	//}
-
-	var xssMdlwr XssMw
 	r.Use(xssMdlwr.RemoveXss())
 	// TODO - filter on Response not Request
 	//r.Use(xss.FilterXss())
@@ -72,14 +63,14 @@ func newServer() *gin.Engine {
 	})
 
 	r.POST("/user", func(c *gin.Context) {
-		//fmt.Println(c.Request.Body)
+		fmt.Println(c.Request.Body)
 		//fmt.Println(c.Header.Get("Content-Length"))
 		var user User
 		//fmt.Printf("%#v", user)
 		err := c.Bind(&user)
 		//fmt.Printf("%#v", user)
 		if err != nil {
-			//fmt.Println(err)
+			fmt.Println(err)
 			c.JSON(404, gin.H{"msg": "Bind Failed."})
 			return
 		}
@@ -115,7 +106,8 @@ func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
 
-	s := newServer()
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
 
 	user := "TestUser"
 	email := "testUser@example.com"
@@ -151,7 +143,8 @@ func TestKeepsValuesStripsHtmlOnPut(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
 
-	s := newServer()
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
 
 	user := "TestUser"
 	email := "testUser@example.com"
@@ -186,7 +179,8 @@ func TestXssSkippedOnNoContentLength(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
 
-	s := newServer()
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
 
 	user := "TestUser"
 	email := "testUser@example.com"
@@ -219,7 +213,8 @@ func TestXssSkippedOnGetRequest(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
 
-	s := newServer()
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
 
 	cmnt := `<img src=x onerror=alert(0)>`
 	oParams := `{"id":2, "comment":"` + cmnt + `"}`
@@ -240,7 +235,8 @@ func TestPasswordIsNotFiltered(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
 
-	s := newServer()
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
 
 	user := "TestUser"
 	email := "testUser@example.com"
@@ -280,7 +276,12 @@ func TestXssFiltersMultiPartFormData(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
 
-	s := newServer()
+	var xssMdlwr XssMw
+	//xssMdlwr = XssMw{
+	//	FieldsToSkip: []string{"password"},
+	//	BmPolicy:     "UGCPolicy",
+	//}
+	s := newServer(xssMdlwr)
 
 	user := "TestUser"
 	email := "testUser@example.com"
@@ -350,7 +351,12 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
 	//fmt.Println("TODO TestXssFiltersXFormEncoded")
 	//t.Skip()
 
-	s := newServer()
+	var xssMdlwr XssMw
+	//xssMdlwr = XssMw{
+	//	FieldsToSkip: []string{"password"},
+	//	BmPolicy:     "UGCPolicy",
+	//}
+	s := newServer(xssMdlwr)
 
 	user := "TestUser"
 	email := "testUser@example.com"
@@ -411,7 +417,12 @@ func TestKeepsHeadersIntact(t *testing.T) {
 	//log.SetOutput(ioutil.Discard)
 	//defer log.SetOutput(os.Stderr)
 
-	s := newServer()
+	var xssMdlwr XssMw
+	//xssMdlwr = XssMw{
+	//	FieldsToSkip: []string{"password"},
+	//	BmPolicy:     "UGCPolicy",
+	//}
+	s := newServer(xssMdlwr)
 
 	user := "TestUser"
 	email := "testUser@example.com"
@@ -423,6 +434,51 @@ func TestKeepsHeadersIntact(t *testing.T) {
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
 	//req.Header.Add("Authorization", "Bearer "+authToken)
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":2,
+            "flt":2.345,
+            "user":"%v",
+            "email":"%v",
+            "password":"%v",
+            "comment":"%v",
+            "cre_at":%v
+        }`
+
+	cmnt_clnd := `` // malicious markup content stripped
+
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
+	assert.JSONEq(t, expect, resp.Body.String())
+}
+
+func TestUGCPolityAllowSomeHTMLOnPost(t *testing.T) {
+	// don't want to see log message while running tests
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	var xssMdlwr XssMw
+	xssMdlwr = XssMw{
+		//TableWhitelist: []byte,
+		//FieldWhitelist []byte,
+		//TableFieldWhitelist []byte,
+		//FieldsToSkip: []string{"password"},
+		BmPolicy: "UGCPolicy",
+	}
+	s := newServer(xssMdlwr)
+
+	user := "TestUser"
+	email := "testUser@example.com"
+	password := "!@$%^ASDF<html>"
+	cmnt := `<img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+	oParams := `{"id":2, "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+	req, _ := http.NewRequest("POST", "/user", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
 
 	resp := httptest.NewRecorder()
 	s.ServeHTTP(resp, req)
