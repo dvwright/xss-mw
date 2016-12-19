@@ -10,7 +10,7 @@ It's applied on http POST and PUT Requests only
 
 The XSS filtering is performed by HTML sanitizer [Bluemonday](https://github.com/microcosm-cc/bluemonday).
 
-The default is to the strictest policy - StrictPolicy()
+The default is to the strictest policy - StrictPolicy() [use of UGCPolicy is untested at this time]
 
 
 # How To Use it?

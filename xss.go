@@ -20,6 +20,7 @@
 // The two packaged policies are available, UGCPolicy or StrictPolicy
 //
 // The default is to the strictest policy - StrictPolicy()
+//  use of UGCPolicy is untested at this time
 package xss
 
 // TODO: support User supplied Bluemondy policy
@@ -100,8 +101,8 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	if mw.BmPolicy == "" {
 		mw.BmPolicy = "StrictPolicy"
 		// TODO
-		//} else if mw.BmPolicy != "StrictPolicy" || mw.BmPolicy != "UGCPolicy" || mw.BmPolicy != "New" {
-	} else if mw.BmPolicy != "StrictPolicy" || mw.BmPolicy != "UGCPolicy" {
+		//} else if mw.BmPolicy != "StrictPolicy" && mw.BmPolicy != "UGCPolicy" && mw.BmPolicy != "New" {
+	} else if mw.BmPolicy != "StrictPolicy" && mw.BmPolicy != "UGCPolicy" {
 		fmt.Println("BlueMondy Policy setting is incorrect!")
 		c.Abort()
 		return
