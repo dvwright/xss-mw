@@ -2,31 +2,36 @@
 // Use of this source code is governed by a MIT style
 // license that can be found in the LICENSE file.
 
-package xss
-
-// XssMw provides an auto remove XSS from all submitted user input.
+// XssMw provides an "auto remove XSS" from all user submitted input.
+//
 // It's applied on POST and PUT Requests only.
 //
 // We currently support three Request types:
-// JSON requests - Content-Type application/json
-// Form Encoded - Content-Type application/x-www-form-urlencoded
-// Multipart Form Data - Content-Type multipart/form-data
+//
+// * JSON requests - Content-Type application/json
+//
+// * Form Encoded - Content-Type application/x-www-form-urlencoded
+//
+// * Multipart Form Data - Content-Type multipart/form-data
+//
 //
 // XSS filtering is performed by HTML sanitizer https://github.com/microcosm-cc/bluemonday
-// The default uses the strictest policy - StrictPolicy()
 //
-//[TODO - how to expose bluemonday?]
+// The two packaged policies are available, UGCPolicy or StrictPolicy
 //
+// The default is to the strictest policy - StrictPolicy()
+package xss
+
+// TODO: support User supplied Bluemondy policy
+// I believe we will have to expose a config option for
+// the ways to build a bluemonday policy
+// e.g AllowStandardAtritubes, AllowStandardURLs, AllowElements, AllowAttrs, etc
+
 // TODO - filter on Response not Request -> r.Use(xss.FilterXss())
 // add option to pass through XSS to the database and filter out only on the Response.
 // - in other words - data would be stored in the database as it was submitted
 // Pros: data integrity
 // Cons: XSS exploits still present
-//
-// NOTE: This is Beta level code with minimal real world usage, use at your own risk - not production ready.
-//
-
-// NOTE: There is plenty of inefficient code which can and will be improved
 
 import (
 	"errors"
@@ -47,10 +52,10 @@ import (
 	"strings"
 )
 
-// TODO - add features/configuration
+// Config struct for passing options
 type XssMw struct {
 	// List of fields to not filter. i.e. password, created_on, created_at, etc
-	// password is set to skip by the system
+	// password is set to skip by the system i.e. FieldsToSkip = []string{"password", "cre_date"}
 	FieldsToSkip []string
 
 	// TODO: need more granular skipping...
@@ -67,6 +72,10 @@ type XssMw struct {
 	// or you can specify you own policy
 	// define it somewhere in your package so that you can call it here
 	// see https://github.com/microcosm-cc/bluemonday/blob/master/policies.go
+	// This must contain one of three possible settings:
+	//             StrictPolicy // the default
+	//             UGCPolicy
+	//             New          // Specify your own policy - not yet supported
 	BmPolicy string
 }
 
@@ -90,7 +99,8 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	// Bluemonday Policy
 	if mw.BmPolicy == "" {
 		mw.BmPolicy = "StrictPolicy"
-		// wrong... needs custom policy set
+		// TODO
+		//} else if mw.BmPolicy != "StrictPolicy" || mw.BmPolicy != "UGCPolicy" || mw.BmPolicy != "New" {
 	} else if mw.BmPolicy != "StrictPolicy" || mw.BmPolicy != "UGCPolicy" {
 		fmt.Println("BlueMondy Policy setting is incorrect!")
 		c.Abort()
@@ -109,27 +119,28 @@ func (mw *XssMw) callRemoveXss(c *gin.Context) {
 	c.Next()
 }
 
-// TODO - use reflection to just call method name passed
-// http://stackoverflow.com/questions/8103617/call-a-struct-and-its-method-by-name-in-go
-// http://stackoverflow.com/questions/33006628/how-to-call-method-of-another-package-from-string-method-name-in-go
-func (mw *XssMw) GetBlueMondayPolicy() *bluemonday.Policy {
-	//return reflect.ValueOf(&mw).MethodByName(mw.BmPolicy).Call([]reflect.Value{})
+// TODO: too bad we can't do reflection here. I believe the only way is to build
+// a new policy config setting by config setting... argh
 
-	if mw.BmPolicy == "StrictPolicy" {
-		return bluemonday.StrictPolicy()
-	} else if mw.BmPolicy == "UGCPolicy" {
+// Get which Bluemonday policy
+func (mw *XssMw) GetBlueMondayPolicy() *bluemonday.Policy {
+
+	if mw.BmPolicy == "UGCPolicy" {
 		return bluemonday.UGCPolicy()
+		//} else if mw.BmPolicy == "New" {
+		//	// TODO: will have to construct one with settings passed
+		//	fmt.Println("New Not Yet Implemented!")
 	}
+
+	// default
 	return bluemonday.StrictPolicy()
 }
 
 // TODO refactor
 
 // Receives an http request object, processes the body, removing html and returns the request.
-// it passes through the headers (and other parts of the request) untouched.
 //
-// The Request must be Content-Type = application/json - TODO make work for other types.
-// There must be a body. i.e. Content-Length > 1
+// Headers (and other parts of the request) are passed through unaltered.
 //
 // Request Method must be "POST" or "PUT"
 //
@@ -202,16 +213,19 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 // just do basic fields - how to tell difference?
 
 // Handles Content-Type "application/x-www-form-urlencoded"
-// Has been tested only with basic param=value form fields
-// i.e comment=<img src=x onerror=alert(0)>
+//
+// Has been tested with basic param=value form fields only:
+//
+//     comment=<img src=x onerror=alert(0)>
 //     &cre_at=1481017167
 //     &email=testUser@example.com
 //     &flt=2.345
 //     &id=2
 //     &password=TestPass
 //     &user=TestUser
+//
 // has not been tested on file/data uploads
-// NOTE: any form field - param key named 'password' is skipped (not sanitized)
+//
 func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 	//fmt.Println("TODO handle application/x-www-form-urlencoded")
 	//dump, _ := httputil.DumpRequest(c.Request, true)
@@ -262,42 +276,44 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 }
 
 // Handles Content-Type "multipart/form-data"
+//
 // skips sanitizing if file upload
-// i.e. Content-Disposition: form-data; name="" filename=""
+//    Content-Disposition: form-data; name="" filename=""
+//
 // tries to determine Content-type for form data file upload, defaults
 // to application/octet-stream if unknown
-// handles basic form field POST request
-// i.e:
-//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//Content-Disposition: form-data; name="flt"
 //
-//2.345
-//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//Content-Disposition: form-data; name="user"
+// handles basic form field POST request for example:
+//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//   Content-Disposition: form-data; name="flt"
 //
-//TestUser
-//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//Content-Disposition: form-data; name="email"
+//   2.345
+//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//   Content-Disposition: form-data; name="user"
 //
-//testUser@example.com
-//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//281         }
-//Content-Disposition: form-data; name="password"
+//   TestUser
+//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//   Content-Disposition: form-data; name="email"
 //
-//!@$%^ASDF
-//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//Content-Disposition: form-data; name="comment"
+//   testUser@example.com
+//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//   281         }
+//   Content-Disposition: form-data; name="password"
 //
-//&gt;&#39;&gt;\&#34;&gt;
-//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//Content-Disposition: form-data; name="cre_at"
+//   !@$%^ASDF
+//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//   Content-Disposition: form-data; name="comment"
 //
-//1481017167
-//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//Content-Disposition: form-data; name="id"
+//   &gt;&#39;&gt;\&#34;&gt;
+//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//   Content-Disposition: form-data; name="cre_at"
 //
-//2
-//--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909--
+//   1481017167
+//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//   Content-Disposition: form-data; name="id"
+//
+//   2
+//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909--
 //
 // NOTE: form-data name 'password' is skipped (not sanitized)
 func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
@@ -364,25 +380,28 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 //
 // The three types of data handled.
 //
-// 1st type filter - basic key:value - most common
-//map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
+// * 1st type filter - basic key:value - most common
 //
-// 2nd type an id with associated ids list
-// map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
-// NOTE changes from ["1", "4", "8"] to [1,4,8]
+//    map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
 //
-// 3rd type an "array of records"
-// []interface {}{
-//    map[string]interface {}{"name":"asd", "url":"/data/1/as",
-//                            "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
-//                            "fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
-//                            "updated_at":"1480791630", "status":"NEW",
-//                            "updated_by":"537", "created_at":"1480450694"},
-//    map[string]interface {}{"name":"asd2", "url":"/data/2/as", etc... },
-//    map[string]interface {}{"name":"asd3", "url":"/data/3/as", etc... },
-//    ...
-// }
-// NOTE: param key named 'password' is skipped (not sanitized)
+// * 2nd type an id with associated ids list
+//
+//     map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
+// - NOTE changes from ["1", "4", "8"] to [1,4,8]
+//
+// * 3rd type an "array of records"
+//
+//   []interface {}{
+//      map[string]interface {}{"name":"asd", "url":"/data/1/as",
+//                              "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
+//                              "fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
+//                              "updated_at":"1480791630", "status":"NEW",
+//                              "updated_by":"537", "created_at":"1480450694"},
+//      map[string]interface {}{"name":"asd2", "url":"/data/2/as", etc... },
+//      map[string]interface {}{"name":"asd3", "url":"/data/3/as", etc... },
+//      ...
+//   }
+//
 func (mw *XssMw) HandleJson(c *gin.Context) error {
 	var jsonBod interface{}
 	d := json.NewDecoder(c.Request.Body)
@@ -431,7 +450,7 @@ func (mw *XssMw) HandleJson(c *gin.Context) error {
 	return nil
 }
 
-// encode processed body back to json and re set http request body
+// encode processed body back to json and re-set http request body
 func (mw *XssMw) SetRequestBodyJson(c *gin.Context, buff bytes.Buffer) error {
 	// XXX clean up - probably don't need to convert to string
 	// only to convert back to NewBuffer for NopCloser
@@ -452,11 +471,10 @@ func (mw *XssMw) SetRequestBodyJson(c *gin.Context, buff bytes.Buffer) error {
 	return nil
 }
 
-// De constructs the http request body
+// De-constructs the http request body
 // removes undesirable content
-// keep the good content to construct and return cleaned http request
-// takes arg map[string]interface{} and a bluemonday Policy
-// returns bytes.Buffer
+// keeps the good content to construct
+// returns the cleaned http request
 func (mw *XssMw) ApplyXssPolicyJson(xmj XssMwJson) bytes.Buffer {
 	//fmt.Printf("JSON BOD: %#v\n", xmj)
 

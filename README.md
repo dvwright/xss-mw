@@ -1,24 +1,25 @@
 # Xss Middleware 
 
 XssMw is an middleware written in [Golang](https://golang.org/) for the 
-[Gin](https://github.com/gin-gonic/gin) web framework.
+[Gin](https://github.com/gin-gonic/gin) web framework. Although, it should be useable with any Go 
+web framework which utilizes Golang's "net/http" native library in a similiar way to Gin.
 
-Although, it should be useable with any Go web framework which utilizes Golang's "net/http" native 
-library in a similiar way to Gin.
+The idea behind XssMw is to "auto remove XSS" from user submitted input. 
 
-The idea behind XssMw is to auto remove XSS from user submitted input. 
+It's applied on http POST and PUT Requests only
 
-It's applied on http POST and PUT Requests.
+The XSS filtering is performed by HTML sanitizer [Bluemonday](https://github.com/microcosm-cc/bluemonday).
 
-Currently it only supports JSON requests - Content-Type application/json. So no filtering on multipart requests yet.
+The default is to the strictest policy - StrictPolicy()
 
 
 # How To Use it?
 
-Somthing like this.
+Using the defaults,
+It will skip filtering for a field named 'password' but will run the filter on everything else.
+Uses the Bluemonday strictest policy - StrictPolicy()
 
-
-```
+```go
 package main
 
 import "gopkg.in/gin-gonic/gin.v1"
@@ -31,6 +32,11 @@ func main() {
     var xssMdlwr xss.XssMw
     r.Use(xssMdlwr.RemoveXss())
 
+    // the xss middleware
+    var xssMdlwr xss.XssMw
+    r.Use(xssMdlwr.RemoveXss())
+
+
     r.GET("/ping", func(c *gin.Context) {
         c.JSON(200, gin.H{
             "message": "pong",
@@ -42,34 +48,51 @@ func main() {
 ```
 
 
-There are a few things to watch out for. 
+Using some config options:
+Here It will skip filtering for a fields named 'password', "create_date" and "token" but will run the filter 
+on everything else.
 
+Uses Bluemonday UGCPolicy
 
-For example.
+```go
+package main
 
-It will skip filtering for a field named 'password' but will run the filter on everything else.
+import "gopkg.in/gin-gonic/gin.v1"
+import "bitbucket.org/dvwright/xss-mw"
 
+func main() {
+    r := gin.Default()
 
-There is a TODO for configs to add passing excude tables/fields from filtering.
+    xssMdlwr := &xss.XssMw{
+            FieldsToSkip: []string{"password", "create_date", "token"},
+            BmPolicy:     "UGCPolicy",
+    }
+    r.Use(xssMdlwr.RemoveXss())
 
+    r.GET("/ping", func(c *gin.Context) {
+        c.JSON(200, gin.H{
+            "message": "pong",
+        })
+    })
+    r.Run() // listen and serve on 0.0.0.0:8080
+}
 
-
-The plan is to be highly configurable since it uses the HTML sanitizer https://github.com/microcosm-cc/bluemonday 
-
-for filtering.  
-
-
-It uses the strictest policy StrictPolicy() and is not confiurable at this time but will be soon. 
-
-
-e.g. The plan is the you can provide whatever Policy you want to enforce.
-
+```
 
 # Data
 
 Currently, it removes (deletes) all HTML and malicious detected input from user input on 
 
 the submitted request to the server. 
+
+It handles three Request types:
+
+* JSON requests - Content-Type application/json
+
+* Form Encoded - Content-Type application/x-www-form-urlencoded
+
+* Multipart Form Data - Content-Type multipart/form-data
+
 
 In the future the plan is have a feature to store all user submitted data intact and have the option to 
 
