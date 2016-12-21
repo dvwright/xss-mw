@@ -23,7 +23,7 @@ Uses the Bluemonday strictest policy - StrictPolicy()
 package main
 
 import "gopkg.in/gin-gonic/gin.v1"
-import "bitbucket.org/dvwright/xss-mw"
+import "github.com/dvwright/xss-mw"
 
 func main() {
     r := gin.Default()
@@ -58,7 +58,7 @@ Uses Bluemonday UGCPolicy
 package main
 
 import "gopkg.in/gin-gonic/gin.v1"
-import "bitbucket.org/dvwright/xss-mw"
+import "github.com/dvwright/xss-mw"
 
 func main() {
     r := gin.Default()
@@ -107,7 +107,7 @@ Cons: XSS exploits still present
 
 
 
-# NOTE: This is Beta level code with minimal actual usage and currently no features.
+# NOTE: This is Beta level code with minimal actual usage
 
 
 ## Contributing 
