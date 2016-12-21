@@ -10,7 +10,7 @@ It's applied on http POST and PUT Requests only
 
 The XSS filtering is performed by HTML sanitizer [Bluemonday](https://github.com/microcosm-cc/bluemonday).
 
-The default is to the strictest policy - StrictPolicy() [use of UGCPolicy is untested at this time]
+The default is to the strictest policy - StrictPolicy()
 
 
 # How To Use it?
@@ -32,11 +32,6 @@ func main() {
     var xssMdlwr xss.XssMw
     r.Use(xssMdlwr.RemoveXss())
 
-    // the xss middleware
-    var xssMdlwr xss.XssMw
-    r.Use(xssMdlwr.RemoveXss())
-
-
     r.GET("/ping", func(c *gin.Context) {
         c.JSON(200, gin.H{
             "message": "pong",
@@ -48,8 +43,8 @@ func main() {
 ```
 
 
-Using some config options:
-Here It will skip filtering for a fields named 'password', "create_date" and "token" but will run the filter 
+Using some config options,
+here It will skip filtering for a fields named 'password', "create_date" and "token" but will run the filter 
 on everything else.
 
 Uses Bluemonday UGCPolicy
@@ -94,20 +89,14 @@ It handles three Request types:
 * Multipart Form Data - Content-Type multipart/form-data
 
 
-In the future the plan is have a feature to store all user submitted data intact and have the option to 
+A future plan is have a feature to store all user submitted data intact and have the option to 
 
-filter it out on the http Response, so you can choose your preference.
-
-
-- in other words - data would be stored in the database as it was submitted and removed in Responses back to the user.
-
-Pros: data integrity
-
-Cons: XSS exploits still present
+filter it out on the http Response, so you can choose your preference.  - in other words - 
+data would be stored in the database as it was submitted and removed in Responses back to the user.
+pros: data integrity, cons: XSS exploits still present
 
 
-
-# NOTE: This is Beta level code with minimal actual usage
+# NOTE: This is Beta level code with minimal actual real world usage
 
 
 ## Contributing 
