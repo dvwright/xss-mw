@@ -425,15 +425,16 @@ func (mw *XssMw) HandleJson(c *gin.Context) error {
 		// a multi records request
 		case []interface{}:
 			var multiRec bytes.Buffer
-			multiRec.WriteString(`[`)
+			multiRec.WriteByte('[')
 			for _, n := range jbt {
 				//fmt.Printf("Item: %v= %v\n", i, n)
 				xmj := n.(map[string]interface{})
 				buff := mw.ApplyXssPolicyJson(xmj)
-				multiRec.WriteString(buff.String() + `,`)
+				multiRec.WriteString(buff.String())
+				multiRec.WriteByte(',')
 			}
 			multiRec.Truncate(multiRec.Len() - 1) // remove last ','
-			multiRec.WriteString(`]`)
+			multiRec.WriteByte(']')
 			err := mw.SetRequestBodyJson(c, multiRec)
 			if err != nil {
 				//fmt.Println("Set request body failed")
@@ -456,12 +457,15 @@ func (mw *XssMw) SetRequestBodyJson(c *gin.Context, buff bytes.Buffer) error {
 	// XXX clean up - probably don't need to convert to string
 	// only to convert back to NewBuffer for NopCloser
 	bodOut := buff.String()
+	//fmt.Printf("BodOut: %v\n", bodOut)
 
 	enc := json.NewEncoder(ioutil.Discard)
+	//enc.SetEscapeHTML(false)
 	if merr := enc.Encode(&bodOut); merr != nil {
-		fmt.Printf("%v", merr)
+		//fmt.Printf("%v", merr)
 		return merr
 	}
+	//fmt.Printf("BodOut2: %v\n", bodOut)
 
 	//fmt.Printf("ReqBody Pre: %v\n", c.Request.Body)
 	//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buff.String())))
@@ -480,7 +484,7 @@ func (mw *XssMw) ApplyXssPolicyJson(xmj XssMwJson) bytes.Buffer {
 	//fmt.Printf("JSON BOD: %#v\n", xmj)
 
 	var buff bytes.Buffer
-	buff.WriteString(`{`)
+	buff.WriteByte('{')
 
 	p := mw.GetBlueMondayPolicy()
 
@@ -488,13 +492,18 @@ func (mw *XssMw) ApplyXssPolicyJson(xmj XssMwJson) bytes.Buffer {
 	for k, v := range m {
 		//fmt.Println(k, v)
 
-		buff.WriteString(`"` + k + `":`)
+		buff.WriteByte('"')
+		buff.WriteString(k)
+		buff.WriteByte('"')
+		buff.WriteByte(':')
 
 		// do fields to skip
 		var fndFld bool = false
 		for _, fts := range mw.FieldsToSkip {
 			if string(k) == fts {
-				buff.WriteString(`"` + fmt.Sprintf("%s", v) + `",`)
+				//buff.WriteString(`"` + fmt.Sprintf("%s", v) + `",`)
+				buff.WriteString(fmt.Sprintf("%q", v))
+				buff.WriteByte(',')
 				fndFld = true
 				break
 			}
@@ -506,39 +515,43 @@ func (mw *XssMw) ApplyXssPolicyJson(xmj XssMwJson) bytes.Buffer {
 		switch vv := v.(type) { // FYI, JSON data is string or float
 		case string:
 			//fmt.Println(k, "is string", vv)
-			buff.WriteString(`"` + p.Sanitize(vv) + `",`)
+			//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
+			buff.WriteString(fmt.Sprintf("%q", p.Sanitize(vv)))
+			buff.WriteByte(',')
 		case float64:
 			//fmt.Println(k, "is float", vv)
 			//buff.WriteString(strconv.FormatFloat(vv, 'g', 0, 64))
 			//buff.WriteString(html.EscapeString(strconv.FormatFloat(vv, 'g', 0, 64)))
-			buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)) + `,`)
+			buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)))
+			buff.WriteByte(',')
 		default:
 			switch vvv := vv.(type) {
 			// probably not very common request but I do it
 			// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
 			case []interface{}:
 				var lst bytes.Buffer
-				lst.WriteString(`[`)
+				lst.WriteByte('[')
 				for _, n := range vvv {
 					//fmt.Printf("Iter: %v= %v\n", i, n)
 					//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
 					// NOTE changes from ["1", "4", "8"] to [1,4,8]
 					lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-					lst.WriteString(`,`)
+					lst.WriteByte(',')
 				}
 				lst.Truncate(lst.Len() - 1) // remove last ','
-				lst.WriteString(`]`)
+				lst.WriteByte(']')
 				buff.WriteString(lst.String())
-				buff.WriteString(`,`) // add cause expected
+				buff.WriteByte(',') // add cause expected
 			default:
 				//fmt.Println(k, "don't know how to handle")
 				//fmt.Println("%#v", vvv) ; fmt.Sprintf("%v", vvv)
-				buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)) + `,`)
+				buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
+				buff.WriteByte(',')
 			}
 		}
 	}
 	buff.Truncate(buff.Len() - 1) // remove last ','
-	buff.WriteString(`}`)
+	buff.WriteByte('}')
 
 	return buff
 }

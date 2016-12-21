@@ -63,14 +63,14 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 	})
 
 	r.POST("/user", func(c *gin.Context) {
-		fmt.Println(c.Request.Body)
+		//fmt.Println(c.Request.Body)
 		//fmt.Println(c.Header.Get("Content-Length"))
 		var user User
 		//fmt.Printf("%#v", user)
 		err := c.Bind(&user)
 		//fmt.Printf("%#v", user)
 		if err != nil {
-			fmt.Println(err)
+			//fmt.Println(err)
 			c.JSON(404, gin.H{"msg": "Bind Failed."})
 			return
 		}
@@ -494,7 +494,7 @@ func TestUGCPolityAllowSomeHTMLOnPost(t *testing.T) {
             "cre_at":%v
         }`
 
-	cmnt_clnd := `` // malicious markup content stripped
+	cmnt_clnd := `<img src=\"x\">` // malicious markup content stripped, valid html left
 
 	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
 	assert.JSONEq(t, expect, resp.Body.String())
