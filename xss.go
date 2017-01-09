@@ -545,7 +545,12 @@ func (mw *XssMw) ApplyXssPolicyJson(xmj XssMwJson) bytes.Buffer {
 			default:
 				//fmt.Println(k, "don't know how to handle")
 				//fmt.Println("%#v", vvv) ; fmt.Sprintf("%v", vvv)
-				buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
+				//buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
+				if vvv == nil {
+					buff.WriteString(fmt.Sprintf("\"\""))
+				} else {
+					buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
+				}
 				buff.WriteByte(',')
 			}
 		}
