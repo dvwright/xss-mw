@@ -414,16 +414,12 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 //}
 //
 func (mw *XssMw) HandleJson(c *gin.Context) error {
-	var jsonBod interface{}
-	d := json.NewDecoder(c.Request.Body)
-	d.UseNumber()
-	jsnErr := d.Decode(&jsonBod)
-	//fmt.Printf("JSON BOD: %#v\n", jsonBod)
-	if jsnErr != nil {
-		return errors.New("Error attempting to decode JSON")
+	jsonBod, err := decodeJson(c.Request.Body)
+	if err != nil {
+		return err
 	}
 
-	buff, err := mw.iterateJson(jsonBod)
+	buff, err := mw.iterateJson(bytes.Buffer{}, jsonBod)
 	if err != nil {
 		return err
 	}
@@ -435,20 +431,40 @@ func (mw *XssMw) HandleJson(c *gin.Context) error {
 	return nil
 }
 
-func (mw *XssMw) iterateJson(jsonBod interface{}) (bytes.Buffer, error) {
+func decodeJson(content io.Reader) (interface{}, error) {
+	var jsonBod interface{}
+	d := json.NewDecoder(content)
+	d.UseNumber()
+	err := d.Decode(&jsonBod)
+	if err != nil {
+		return nil, err
+	}
+	//fmt.Printf("JSON BOD: %#v\n", jsonBod)
+	return jsonBod, err
+}
+
+func (mw *XssMw) iterateJson(buff bytes.Buffer, jsonBod interface{}) (bytes.Buffer, error) {
 	switch jbt := jsonBod.(type) {
 	case map[string]interface{}:
 		//fmt.Printf("\n\n\n1st type\n\n\n")
 		xmj := jsonBod.(map[string]interface{})
-		buff := mw.ApplyXssPolicyJson(xmj)
+		//fmt.Printf("%v", xmj)
+		buff = mw.ApplyXssPolicyJson(xmj)
+		// if more 'map[' continue unravel...
+		//var err error
+		//buff, err = mw.iterateJson(buff, xmj)
+		//if err != nil {
+		//	return bytes.Buffer{}, errors.New("cannot continue to unravel json!")
+		//}
 		return buff, nil
+	// TODO: need a test to prove this
 	case []interface{}:
 		var multiRec bytes.Buffer
 		multiRec.WriteByte('[')
 		for _, n := range jbt {
 			//fmt.Printf("Item: %v= %v\n", i, n)
 			xmj := n.(map[string]interface{})
-			buff := mw.ApplyXssPolicyJson(xmj)
+			buff = mw.ApplyXssPolicyJson(xmj)
 			multiRec.WriteString(buff.String())
 			multiRec.WriteByte(',')
 		}
