@@ -450,12 +450,20 @@ func (mw *XssMw) iterateJson(buff bytes.Buffer, jsonBod interface{}) (bytes.Buff
 		xmj := jsonBod.(map[string]interface{})
 		//fmt.Printf("%v", xmj)
 		buff = mw.ApplyXssPolicyJson(xmj)
+		//
+		//
 		// if more 'map[' continue unravel...
+		//buff, err := walkMap(&buff)
+		//if err != nil {
+		//	return buff, err
+		//}
 		//var err error
 		//buff, err = mw.iterateJson(buff, xmj)
 		//if err != nil {
 		//	return bytes.Buffer{}, errors.New("cannot continue to unravel json!")
 		//}
+		//
+		//
 		return buff, nil
 	// TODO: need a test to prove this
 	case []interface{}:
