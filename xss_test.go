@@ -106,7 +106,7 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 	// nested JSON
 	r.POST("/user_post_nested_json", func(c *gin.Context) {
 		var users Users
-		fmt.Printf("%#v", users)
+		// fmt.Printf("%#v", users)
 		err := c.Bind(&users)
 		if err != nil {
 			//fmt.Println(err)
@@ -177,7 +177,6 @@ func TestSupportNestedJSONPost(t *testing.T) {
 	userB := `{"id":2,  "flt":2.345, "user":"` + user2 + `", "email": "` + email2 + `", "password":"` + password2 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
 
 	oParams := `{"id":1, "users": [ ` + userA + `,` + userB + `]}`
-	fmt.Println(oParams)
 
 	req, _ := http.NewRequest("POST", "/user_post_nested_json", bytes.NewBufferString(oParams))
 	req.Header.Add("Content-Type", "application/json")

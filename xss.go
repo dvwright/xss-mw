@@ -379,7 +379,7 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 
 // Handles request Content-Type = application/json
 //
-// The three types of data handled.
+// The four types of data handled.
 //
 // * 1st type filter - basic key:value - most common
 //
@@ -403,53 +403,63 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ct_hdr string) error {
 //      ...
 //   }
 //
+// * 4th type "complex array/nested records"
+//
+//  map[string]interface {}{
+//      "id":"1",
+//      "users":[]interface {}{
+//           map[string]interface {}{"id":"1", "flt":"1.345", "user":"TestUser1", "email":"testUser1@example.com", "password":"!@$%^ASDF<html>1", "comment":"<img src=x onerror=alert(0)>", "cre_at":"1481017167"},
+//           map[string]interface {}{"cre_at":"1481017167", "id":"2", "flt":"2.345", "user":"TestUser2", "email":"testUser2@example.com", "password":"!@$%^ASDF<html>2", "comment":"<img src=x onerror=alert(0)>"}
+//      }
+//}
+//
 func (mw *XssMw) HandleJson(c *gin.Context) error {
 	var jsonBod interface{}
 	d := json.NewDecoder(c.Request.Body)
 	d.UseNumber()
 	jsnErr := d.Decode(&jsonBod)
 	//fmt.Printf("JSON BOD: %#v\n", jsonBod)
-
-	if jsnErr == nil {
-		switch jbt := jsonBod.(type) {
-		// most common
-		case map[string]interface{}:
-			//fmt.Printf("\n\n\n1st type\n\n\n")
-			xmj := jsonBod.(map[string]interface{})
-			buff := mw.ApplyXssPolicyJson(xmj)
-			err := mw.SetRequestBodyJson(c, buff)
-			if err != nil {
-				//fmt.Println("Set request body failed")
-				return errors.New("Set Request.Body Error")
-			}
-		// a multi records request
-		case []interface{}:
-			var multiRec bytes.Buffer
-			multiRec.WriteByte('[')
-			for _, n := range jbt {
-				//fmt.Printf("Item: %v= %v\n", i, n)
-				xmj := n.(map[string]interface{})
-				buff := mw.ApplyXssPolicyJson(xmj)
-				multiRec.WriteString(buff.String())
-				multiRec.WriteByte(',')
-			}
-			multiRec.Truncate(multiRec.Len() - 1) // remove last ','
-			multiRec.WriteByte(']')
-			err := mw.SetRequestBodyJson(c, multiRec)
-			if err != nil {
-				//fmt.Println("Set request body failed")
-				return errors.New("Set Request.Body Error")
-			}
-		default:
-			//var r = reflect.TypeOf(jbt) // debug type
-			//fmt.Printf("Unknown Type!:%v\n", r)
-			return errors.New("Unknown Content Type Received")
-		}
-
-	} else {
+	if jsnErr != nil {
 		return errors.New("Error attempting to decode JSON")
 	}
+
+	buff, err := mw.iterateJson(jsonBod)
+	if err != nil {
+		return err
+	}
+	err = mw.SetRequestBodyJson(c, buff)
+	if err != nil {
+		//fmt.Println("Set request body failed")
+		return errors.New("Set Request.Body Error")
+	}
 	return nil
+}
+
+func (mw *XssMw) iterateJson(jsonBod interface{}) (bytes.Buffer, error) {
+	switch jbt := jsonBod.(type) {
+	case map[string]interface{}:
+		//fmt.Printf("\n\n\n1st type\n\n\n")
+		xmj := jsonBod.(map[string]interface{})
+		buff := mw.ApplyXssPolicyJson(xmj)
+		return buff, nil
+	case []interface{}:
+		var multiRec bytes.Buffer
+		multiRec.WriteByte('[')
+		for _, n := range jbt {
+			//fmt.Printf("Item: %v= %v\n", i, n)
+			xmj := n.(map[string]interface{})
+			buff := mw.ApplyXssPolicyJson(xmj)
+			multiRec.WriteString(buff.String())
+			multiRec.WriteByte(',')
+		}
+		multiRec.Truncate(multiRec.Len() - 1) // remove last ','
+		multiRec.WriteByte(']')
+		return multiRec, nil
+	default:
+		//var r = reflect.TypeOf(jbt) // debug type
+		//fmt.Printf("Unknown Type!:%v\n", r)
+		return bytes.Buffer{}, errors.New("Unknown Content Type Received")
+	}
 }
 
 // encode processed body back to json and re-set http request body
