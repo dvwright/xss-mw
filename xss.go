@@ -38,7 +38,6 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	//"net/http/httputil" // debugging
-	//"reflect" // debugging type
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -47,6 +46,7 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/url"
+	"reflect" // debugging type
 	"strconv"
 	"strings"
 )
@@ -555,33 +555,59 @@ func (mw *XssMw) buildJsonApplyPolicy(v interface{}, buff bytes.Buffer, p *bluem
 		buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)))
 		buff.WriteByte(',')
 	default:
-		switch vvv := vv.(type) {
-		// probably not very common request but I do it
-		// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
-		case []interface{}:
-			var lst bytes.Buffer
-			lst.WriteByte('[')
-			for _, n := range vvv {
-				//fmt.Printf("Iter: %v= %v\n", i, n)
-				//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
-				// NOTE changes from ["1", "4", "8"] to [1,4,8]
-				lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-				lst.WriteByte(',')
-			}
-			lst.Truncate(lst.Len() - 1) // remove last ','
-			lst.WriteByte(']')
-			buff.WriteString(lst.String())
-			buff.WriteByte(',') // add cause expected
-		default:
-			//fmt.Println(k, "don't know how to handle")
-			//fmt.Println("%#v", vvv) ; fmt.Sprintf("%v", vvv)
-			if vvv == nil {
-				buff.WriteString(fmt.Sprintf("%s", "null"))
-			} else {
-				buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
-			}
-			buff.WriteByte(',')
+		var b bytes.Buffer
+		apndBuff := mw.reiterateInterface(v, b, p)
+		buff.WriteString(apndBuff.String())
+	}
+	return buff
+}
+
+func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
+	var lst bytes.Buffer
+	lst.WriteByte('[')
+	for i, n := range vvv {
+		fmt.Printf("Iter: %v= %v\n", i, n)
+		fmt.Println("I don't know how to handle")
+		var r = reflect.TypeOf(n)
+		fmt.Printf("Unknown Type!:%v\n", r)
+
+		//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
+		// NOTE changes from ["1", "4", "8"] to [1,4,8]
+		lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+		lst.WriteByte(',')
+	}
+	lst.Truncate(lst.Len() - 1) // remove last ','
+	lst.WriteByte(']')
+	return lst
+}
+
+func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
+	switch vvv := vv.(type) {
+	// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
+	case map[string]interface{}:
+
+	case []interface{}:
+
+		var b bytes.Buffer
+		b = mw.reiterateInterfaceSlice(vvv, b, p)
+		buff.WriteString(b.String())
+		buff.WriteByte(',') // add cause expected
+	case json.Number:
+		//fmt.Println(k, "is number", vv)
+		//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
+		buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
+		buff.WriteByte(',')
+	default:
+		fmt.Println("I don't know how to handle")
+		var r = reflect.TypeOf(vvv)
+		fmt.Printf("Unknown Type!:%v\n", r)
+
+		if vvv == nil {
+			buff.WriteString(fmt.Sprintf("%s", "null"))
+		} else {
+			buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
 		}
+		buff.WriteByte(',')
 	}
 	return buff
 }
