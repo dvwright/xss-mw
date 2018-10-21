@@ -554,61 +554,54 @@ func (mw *XssMw) buildJsonApplyPolicy(v interface{}, buff bytes.Buffer, p *bluem
 		//buff.WriteString(html.EscapeString(strconv.FormatFloat(vv, 'g', 0, 64)))
 		buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)))
 		buff.WriteByte(',')
-	default:
-		var b bytes.Buffer
-		apndBuff := mw.reiterateInterface(v, b, p)
-		buff.WriteString(apndBuff.String())
-	}
-	return buff
-}
-
-func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
-	var lst bytes.Buffer
-	lst.WriteByte('[')
-	for i, n := range vvv {
-		fmt.Printf("Iter: %v= %v\n", i, n)
-		fmt.Println("I don't know how to handle")
-		var r = reflect.TypeOf(n)
-		fmt.Printf("Unknown Type!:%v\n", r)
-
-		//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
-		// NOTE changes from ["1", "4", "8"] to [1,4,8]
-		lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		lst.WriteByte(',')
-	}
-	lst.Truncate(lst.Len() - 1) // remove last ','
-	lst.WriteByte(']')
-	return lst
-}
-
-func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
-	switch vvv := vv.(type) {
-	// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
-	case map[string]interface{}:
-
-	case []interface{}:
-
-		var b bytes.Buffer
-		b = mw.reiterateInterfaceSlice(vvv, b, p)
-		buff.WriteString(b.String())
-		buff.WriteByte(',') // add cause expected
 	case json.Number:
 		//fmt.Println(k, "is number", vv)
-		//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
-		buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
+		buff.WriteString(fmt.Sprintf("%q", p.Sanitize(vv.String())))
+		buff.WriteByte(',')
+	case map[string]interface{}:
+		var lst bytes.Buffer
+		lst.WriteByte('{')
+		for i, n := range vv {
+			fmt.Printf("Iter: %v= %v\n", i, n)
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+			lst.WriteByte(',')
+		}
+		lst.Truncate(lst.Len() - 1) // remove last ','
+		lst.WriteByte('}')
+		//buff.WriteString(lst.String())
+		//buff.WriteByte(',')
+		return lst
+	case []interface{}:
+		var lst bytes.Buffer
+		lst.WriteByte('[')
+		for _, n := range vv {
+			//fmt.Printf("Iter: %v= %v\n", i, n)
+			//fmt.Println("I don't know how to handle")
+			//var r = reflect.TypeOf(n)
+			//fmt.Printf("Unknown Type!:%v\n", r)
+			switch bbnew := n.(type) { // FYI, JSON data is string or float
+			case map[string]interface{}:
+				var bnew bytes.Buffer
+				fmt.Printf("BBNEW: %v\n", bbnew)
+				bnew = mw.buildJsonApplyPolicy(n, buff, p)
+				lst.WriteString(p.Sanitize(fmt.Sprintf("%v", bnew)))
+				lst.WriteByte(',')
+			}
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+			lst.WriteByte(',')
+		}
+		lst.Truncate(lst.Len() - 1) // remove last ','
+		lst.WriteByte(']')
+		buff.WriteString(lst.String())
 		buff.WriteByte(',')
 	default:
-		fmt.Println("I don't know how to handle")
-		var r = reflect.TypeOf(vvv)
-		fmt.Printf("Unknown Type!:%v\n", r)
-
-		if vvv == nil {
-			buff.WriteString(fmt.Sprintf("%s", "null"))
-		} else {
-			buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
-		}
-		buff.WriteByte(',')
+		fmt.Println("I AM HERE REFLECT")
+		var r = reflect.TypeOf(vv)
+		fmt.Printf("REflect Type:%v\n", r)
 	}
+
+	fmt.Printf("BUFF STRING IS: %#v\n", buff.String())
+	fmt.Println(buff.String())
 	return buff
 }
 
