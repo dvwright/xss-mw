@@ -195,6 +195,9 @@ func TestSupportNestedJSONPost(t *testing.T) {
         }`
 
 	expect := fmt.Sprintf(expStr, user1, email1, password1, cmnt, cre_at, user2, email2, password2, cmnt, cre_at)
+	fmt.Println(expect)
+
+	fmt.Println(resp.Body.String())
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
