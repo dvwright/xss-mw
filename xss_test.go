@@ -103,18 +103,18 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 		c.JSON(200, usr)
 	})
 
-	//// nested JSON
-	//r.POST("/user_post_nested_json", func(c *gin.Context) {
-	//	var users Users
-	//	// fmt.Printf("%#v", users)
-	//	err := c.Bind(&users)
-	//	if err != nil {
-	//		//fmt.Println(err)
-	//		c.JSON(404, gin.H{"msg": "Bind Failed."})
-	//		return
-	//	}
-	//	c.JSON(201, users)
-	//})
+	// nested JSON
+	r.POST("/user_post_nested_json", func(c *gin.Context) {
+		var users Users
+		// fmt.Printf("%#v", users)
+		err := c.Bind(&users)
+		if err != nil {
+			//fmt.Println(err)
+			c.JSON(404, gin.H{"msg": "Bind Failed."})
+			return
+		}
+		c.JSON(201, users)
+	})
 
 	return r
 }
