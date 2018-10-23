@@ -538,6 +538,8 @@ func (mw *XssMw) ConstructJson(xmj XssMwJson) bytes.Buffer {
 	buff.Truncate(buff.Len() - 1) // remove last ','
 	buff.WriteByte('}')
 
+	fmt.Println("TOP CONStruct JSON")
+	fmt.Println(buff.String())
 	return buff
 }
 
@@ -567,7 +569,7 @@ func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p
 	//switch vvvv := vvv.(type) {
 	//case map[string]interface{}:
 	var lst bytes.Buffer
-	lst.WriteByte('{')
+	lst.WriteByte('[')
 	for i, n := range vvv {
 		fmt.Printf("Iter: %v= %v\n", i, n)
 		fmt.Println("IN REITERATE")
@@ -576,6 +578,8 @@ func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p
 		switch nn := n.(type) {
 		case map[string]interface{}:
 			fmt.Println("MAPY map[string]interface{}")
+			////moo := mw.reiterateInterface(nn, buff, p)
+			////lst.WriteString(moo.String())
 			var scnd bytes.Buffer
 			scnd.WriteByte('{')
 			for i, nnn := range nn {
@@ -583,11 +587,18 @@ func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p
 				scnd.WriteString(i)
 				scnd.WriteByte('"')
 				scnd.WriteByte(':')
-				scnd.WriteByte('"')
-				scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnn)))
-				scnd.WriteByte('"')
-				scnd.WriteByte(',')
+				var r = reflect.TypeOf(nnn)
+				fmt.Printf("REiterate  Type!:%v\n", r)
+				switch nnnn := nnn.(type) {
+				case json.Number:
+					scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
 
+				default:
+					scnd.WriteByte('"')
+					scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
+					scnd.WriteByte('"')
+				}
+				scnd.WriteByte(',')
 			}
 			scnd.Truncate(scnd.Len() - 1) // remove last ','
 			scnd.WriteByte('}')
@@ -596,12 +607,16 @@ func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p
 
 		case []interface{}:
 			fmt.Println("MAPY []interface{}")
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
 		case json.Number:
 			fmt.Println("json.Number")
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
 		case string:
 			fmt.Println("float 64")
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
 		case float64:
 			fmt.Println("float 64")
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
 		default:
 			fmt.Println("DEFAULT")
 			fmt.Printf("nn %v", nn)
@@ -613,7 +628,7 @@ func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p
 		//lst.WriteByte(',')
 	}
 	lst.Truncate(lst.Len() - 1) // remove last ','
-	lst.WriteByte('}')
+	lst.WriteByte(']')
 	//default:
 	//	fmt.Printf("REiterate Default")
 	//}
@@ -648,6 +663,7 @@ func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemo
 		}
 		buff.WriteByte(',')
 	}
+
 	//fmt.Printf("Reiterate Interface %v", buff.String())
 	return buff
 }

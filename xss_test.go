@@ -157,49 +157,49 @@ func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
-//func TestSupportNestedJSONPost(t *testing.T) {
-//	log.SetOutput(ioutil.Discard)
-//	defer log.SetOutput(os.Stderr)
-//
-//	var xssMdlwr XssMw
-//	s := newServer(xssMdlwr)
-//
-//	user1 := "TestUser1"
-//	email1 := "testUser1@example.com"
-//	password1 := "!@$%^ASDF<html>1"
-//	cmnt := `<img src=x onerror=alert(0)>`
-//	cre_at := "1481017167"
-//	userA := `{"id":1,  "flt":1.345, "user":"` + user1 + `", "email": "` + email1 + `", "password":"` + password1 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
-//
-//	user2 := "TestUser2"
-//	email2 := "testUser2@example.com"
-//	password2 := "!@$%^ASDF<html>2"
-//	userB := `{"id":2,  "flt":2.345, "user":"` + user2 + `", "email": "` + email2 + `", "password":"` + password2 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
-//
-//	oParams := `{"id":1, "users": [ ` + userA + `,` + userB + `]}`
-//
-//	req, _ := http.NewRequest("POST", "/user_post_nested_json", bytes.NewBufferString(oParams))
-//	req.Header.Add("Content-Type", "application/json")
-//	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
-//
-//	resp := httptest.NewRecorder()
-//	s.ServeHTTP(resp, req)
-//
-//	assert.Equal(t, 201, resp.Code)
-//	expStr := `{
-//            "id":1,
-//			"users":[
-//			  {"id":1, "flt":1.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v},
-//              {"id":2, "flt":2.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v}
-//			]
-//        }`
-//
-//	expect := fmt.Sprintf(expStr, user1, email1, password1, cmnt, cre_at, user2, email2, password2, cmnt, cre_at)
-//	fmt.Println(expect)
-//
-//	fmt.Println(resp.Body.String())
-//	assert.JSONEq(t, expect, resp.Body.String())
-//}
+func TestSupportNestedJSONPost(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
+
+	user1 := "TestUser1"
+	email1 := "testUser1@example.com"
+	password1 := "!@$%^ASDF<html>1"
+	cmnt := `<img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+	userA := `{"id":1,  "flt":1.345, "user":"` + user1 + `", "email": "` + email1 + `", "password":"` + password1 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+
+	user2 := "TestUser2"
+	email2 := "testUser2@example.com"
+	password2 := "!@$%^ASDF<html>2"
+	userB := `{"id":2,  "flt":2.345, "user":"` + user2 + `", "email": "` + email2 + `", "password":"` + password2 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+
+	oParams := `{"id":1, "users": [ ` + userA + `,` + userB + `]}`
+
+	req, _ := http.NewRequest("POST", "/user_post_nested_json", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":1,
+			"users":[
+			  {"id":1, "flt":1.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v},
+              {"id":2, "flt":2.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v}
+			]
+        }`
+
+	expect := fmt.Sprintf(expStr, user1, email1, password1, cmnt, cre_at, user2, email2, password2, cmnt, cre_at)
+	fmt.Println(expect)
+
+	fmt.Println(resp.Body.String())
+	assert.JSONEq(t, expect, resp.Body.String())
+}
 
 func TestKeepsValuesStripsHtmlOnPut(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
