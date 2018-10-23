@@ -556,28 +556,67 @@ func (mw *XssMw) buildJsonApplyPolicy(v interface{}, buff bytes.Buffer, p *bluem
 		buff.WriteByte(',')
 	default:
 		var b bytes.Buffer
-		apndBuff := mw.reiterateInterface(v, b, p)
+		apndBuff := mw.reiterateInterface(vv, b, p)
 		buff.WriteString(apndBuff.String())
 	}
 	return buff
 }
 
 func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
+	fmt.Println("IN reiterateInterfaceSlice")
+	//switch vvvv := vvv.(type) {
+	//case map[string]interface{}:
 	var lst bytes.Buffer
-	lst.WriteByte('[')
+	lst.WriteByte('{')
 	for i, n := range vvv {
 		fmt.Printf("Iter: %v= %v\n", i, n)
-		fmt.Println("I don't know how to handle")
+		fmt.Println("IN REITERATE")
 		var r = reflect.TypeOf(n)
-		fmt.Printf("Unknown Type!:%v\n", r)
+		fmt.Printf("REiterate  Type!:%v\n", r)
+		switch nn := n.(type) {
+		case map[string]interface{}:
+			fmt.Println("MAPY map[string]interface{}")
+			var scnd bytes.Buffer
+			scnd.WriteByte('{')
+			for i, nnn := range nn {
+				scnd.WriteByte('"')
+				scnd.WriteString(i)
+				scnd.WriteByte('"')
+				scnd.WriteByte(':')
+				scnd.WriteByte('"')
+				scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnn)))
+				scnd.WriteByte('"')
+				scnd.WriteByte(',')
+
+			}
+			scnd.Truncate(scnd.Len() - 1) // remove last ','
+			scnd.WriteByte('}')
+			lst.WriteString(scnd.String())
+			lst.WriteByte(',') // add cause expected
+
+		case []interface{}:
+			fmt.Println("MAPY []interface{}")
+		case json.Number:
+			fmt.Println("json.Number")
+		case string:
+			fmt.Println("float 64")
+		case float64:
+			fmt.Println("float 64")
+		default:
+			fmt.Println("DEFAULT")
+			fmt.Printf("nn %v", nn)
+		}
 
 		//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
 		// NOTE changes from ["1", "4", "8"] to [1,4,8]
-		lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		lst.WriteByte(',')
+		//lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+		//lst.WriteByte(',')
 	}
 	lst.Truncate(lst.Len() - 1) // remove last ','
-	lst.WriteByte(']')
+	lst.WriteByte('}')
+	//default:
+	//	fmt.Printf("REiterate Default")
+	//}
 	return lst
 }
 
@@ -585,22 +624,22 @@ func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemo
 	switch vvv := vv.(type) {
 	// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
 	case map[string]interface{}:
+		//fmt.Println("IN DEFAULT I don't know how to handle")
 
 	case []interface{}:
-
-		var b bytes.Buffer
-		b = mw.reiterateInterfaceSlice(vvv, b, p)
+		//var b bytes.Buffer
+		b := mw.reiterateInterfaceSlice(vvv, buff, p)
 		buff.WriteString(b.String())
 		buff.WriteByte(',') // add cause expected
 	case json.Number:
-		//fmt.Println(k, "is number", vv)
+		//fmt.Println("is number", vvv)
 		//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
 		buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
 		buff.WriteByte(',')
 	default:
-		fmt.Println("I don't know how to handle")
-		var r = reflect.TypeOf(vvv)
-		fmt.Printf("Unknown Type!:%v\n", r)
+		//fmt.Println("IN DEFAULT I don't know how to handle")
+		//var r = reflect.TypeOf(vvv)
+		//fmt.Printf("IN DEFAULT Unknown Type!:%v\n", r)
 
 		if vvv == nil {
 			buff.WriteString(fmt.Sprintf("%s", "null"))
@@ -609,6 +648,7 @@ func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemo
 		}
 		buff.WriteByte(',')
 	}
+	//fmt.Printf("Reiterate Interface %v", buff.String())
 	return buff
 }
 
