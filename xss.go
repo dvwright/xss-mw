@@ -46,7 +46,7 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/url"
-	"reflect" // debugging type
+	//"reflect" // debugging type
 	"strconv"
 	"strings"
 )
@@ -538,8 +538,8 @@ func (mw *XssMw) ConstructJson(xmj XssMwJson) bytes.Buffer {
 	buff.Truncate(buff.Len() - 1) // remove last ','
 	buff.WriteByte('}')
 
-	fmt.Println("TOP CONStruct JSON")
-	fmt.Println(buff.String())
+	//fmt.Println("TOP CONStruct JSON")
+	//fmt.Println(buff.String())
 	return buff
 }
 
@@ -562,77 +562,6 @@ func (mw *XssMw) buildJsonApplyPolicy(v interface{}, buff bytes.Buffer, p *bluem
 		buff.WriteString(apndBuff.String())
 	}
 	return buff
-}
-
-func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
-	fmt.Println("IN reiterateInterfaceSlice")
-	//switch vvvv := vvv.(type) {
-	//case map[string]interface{}:
-	var lst bytes.Buffer
-	lst.WriteByte('[')
-	for i, n := range vvv {
-		fmt.Printf("Iter: %v= %v\n", i, n)
-		fmt.Println("IN REITERATE")
-		var r = reflect.TypeOf(n)
-		fmt.Printf("REiterate  Type!:%v\n", r)
-		switch nn := n.(type) {
-		case map[string]interface{}:
-			fmt.Println("MAPY map[string]interface{}")
-			////moo := mw.reiterateInterface(nn, buff, p)
-			////lst.WriteString(moo.String())
-			var scnd bytes.Buffer
-			scnd.WriteByte('{')
-			for i, nnn := range nn {
-				scnd.WriteByte('"')
-				scnd.WriteString(i)
-				scnd.WriteByte('"')
-				scnd.WriteByte(':')
-				var r = reflect.TypeOf(nnn)
-				fmt.Printf("REiterate  Type!:%v\n", r)
-				switch nnnn := nnn.(type) {
-				case json.Number:
-					scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
-
-				default:
-					scnd.WriteByte('"')
-					scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
-					scnd.WriteByte('"')
-				}
-				scnd.WriteByte(',')
-			}
-			scnd.Truncate(scnd.Len() - 1) // remove last ','
-			scnd.WriteByte('}')
-			lst.WriteString(scnd.String())
-			lst.WriteByte(',') // add cause expected
-
-		case []interface{}:
-			fmt.Println("MAPY []interface{}")
-			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		case json.Number:
-			fmt.Println("json.Number")
-			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		case string:
-			fmt.Println("float 64")
-			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		case float64:
-			fmt.Println("float 64")
-			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		default:
-			fmt.Println("DEFAULT")
-			fmt.Printf("nn %v", nn)
-		}
-
-		//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
-		// NOTE changes from ["1", "4", "8"] to [1,4,8]
-		//lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		//lst.WriteByte(',')
-	}
-	lst.Truncate(lst.Len() - 1) // remove last ','
-	lst.WriteByte(']')
-	//default:
-	//	fmt.Printf("REiterate Default")
-	//}
-	return lst
 }
 
 func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
@@ -666,6 +595,87 @@ func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemo
 
 	//fmt.Printf("Reiterate Interface %v", buff.String())
 	return buff
+}
+
+func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
+	//fmt.Println("IN reiterateInterfaceSlice")
+	//switch vvvv := vvv.(type) {
+	//case map[string]interface{}:
+	var lst bytes.Buffer
+	lst.WriteByte('[')
+	for _, n := range vvv {
+		//fmt.Printf("Iter: %v= %v\n", i, n)
+		//fmt.Println("IN REITERATE")
+		//var r = reflect.TypeOf(n)
+		//fmt.Printf("REiterate  Type!:%v\n", r)
+		switch nn := n.(type) {
+		case map[string]interface{}:
+			//fmt.Println("MAPY map[string]interface{}")
+			////moo := mw.reiterateInterface(nn, buff, p)
+			////lst.WriteString(moo.String())
+			var scnd bytes.Buffer
+			scnd.WriteByte('{')
+		Top:
+			for i, nnn := range nn {
+				scnd.WriteByte('"')
+				scnd.WriteString(i)
+				scnd.WriteByte('"')
+				scnd.WriteByte(':')
+
+				for _, fts := range mw.FieldsToSkip {
+					if string(i) == fts {
+						scnd.WriteString(fmt.Sprintf("%q", nnn))
+						scnd.WriteByte(',')
+						continue Top
+					}
+				}
+
+				//var r = reflect.TypeOf(nnn)
+				//fmt.Printf("REiterate  Type!:%v\n", r)
+				switch nnnn := nnn.(type) {
+				case json.Number:
+					scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
+
+				default:
+					scnd.WriteByte('"')
+					scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
+					scnd.WriteByte('"')
+				}
+				scnd.WriteByte(',')
+			}
+			scnd.Truncate(scnd.Len() - 1) // remove last ','
+			scnd.WriteByte('}')
+			lst.WriteString(scnd.String())
+			lst.WriteByte(',') // add cause expected
+
+		case []interface{}:
+			//fmt.Println("MAPY []interface{}")
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+		case json.Number:
+			//fmt.Println("json.Number")
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+		case string:
+			//fmt.Println("float 64")
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+		case float64:
+			//fmt.Println("float 64")
+			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+		default:
+			//fmt.Println("DEFAULT")
+			//fmt.Printf("nn %v", nn)
+		}
+
+		//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
+		// NOTE changes from ["1", "4", "8"] to [1,4,8]
+		//lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
+		//lst.WriteByte(',')
+	}
+	lst.Truncate(lst.Len() - 1) // remove last ','
+	lst.WriteByte(']')
+	//default:
+	//	fmt.Printf("REiterate Default")
+	//}
+	return lst
 }
 
 // TODO
