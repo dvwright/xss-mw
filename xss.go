@@ -538,7 +538,7 @@ func (mw *XssMw) ConstructJson(xmj XssMwJson) bytes.Buffer {
 	buff.Truncate(buff.Len() - 1) // remove last ','
 	buff.WriteByte('}')
 
-	//fmt.Println("TOP CONStruct JSON")
+	//fmt.Println("TOP CONSTRUCT JSON")
 	//fmt.Println(buff.String())
 	return buff
 }
@@ -568,9 +568,12 @@ func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemo
 	switch vvv := vv.(type) {
 	// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
 	case map[string]interface{}:
-		//fmt.Println("IN DEFAULT I don't know how to handle")
-
+		//fmt.Println("map[string]interface{}")
+		scnd := mw.reiterateMapStringInterfaceSlice(vvv, buff, p)
+		buff.WriteString(scnd.String())
+		buff.WriteByte(',') // add cause expected
 	case []interface{}:
+		//fmt.Println("[]interface{}")
 		//var b bytes.Buffer
 		b := mw.reiterateInterfaceSlice(vvv, buff, p)
 		buff.WriteString(b.String())
@@ -579,6 +582,12 @@ func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemo
 		//fmt.Println("is number", vvv)
 		//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
 		buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
+		buff.WriteByte(',')
+	case string:
+		//fmt.Println("is string", vvv)
+		buff.WriteByte('"')
+		buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
+		buff.WriteByte('"')
 		buff.WriteByte(',')
 	default:
 		//fmt.Println("IN DEFAULT I don't know how to handle")
@@ -610,44 +619,9 @@ func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p
 		//fmt.Printf("REiterate  Type!:%v\n", r)
 		switch nn := n.(type) {
 		case map[string]interface{}:
-			//fmt.Println("MAPY map[string]interface{}")
-			////moo := mw.reiterateInterface(nn, buff, p)
-			////lst.WriteString(moo.String())
-			var scnd bytes.Buffer
-			scnd.WriteByte('{')
-		Top:
-			for i, nnn := range nn {
-				scnd.WriteByte('"')
-				scnd.WriteString(i)
-				scnd.WriteByte('"')
-				scnd.WriteByte(':')
-
-				for _, fts := range mw.FieldsToSkip {
-					if string(i) == fts {
-						scnd.WriteString(fmt.Sprintf("%q", nnn))
-						scnd.WriteByte(',')
-						continue Top
-					}
-				}
-
-				//var r = reflect.TypeOf(nnn)
-				//fmt.Printf("REiterate  Type!:%v\n", r)
-				switch nnnn := nnn.(type) {
-				case json.Number:
-					scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
-
-				default:
-					scnd.WriteByte('"')
-					scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
-					scnd.WriteByte('"')
-				}
-				scnd.WriteByte(',')
-			}
-			scnd.Truncate(scnd.Len() - 1) // remove last ','
-			scnd.WriteByte('}')
+			scnd := mw.reiterateMapStringInterfaceSlice(nn, lst, p)
 			lst.WriteString(scnd.String())
 			lst.WriteByte(',') // add cause expected
-
 		case []interface{}:
 			//fmt.Println("MAPY []interface{}")
 			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
@@ -676,6 +650,49 @@ func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p
 	//	fmt.Printf("REiterate Default")
 	//}
 	return lst
+}
+
+func (mw *XssMw) reiterateMapStringInterfaceSlice(nn map[string]interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
+	//fmt.Println("MAPY map[string]interface{}")
+	////moo := mw.reiterateInterface(nn, buff, p)
+	////lst.WriteString(moo.String())
+	var scnd bytes.Buffer
+	scnd.WriteByte('{')
+Top:
+	for i, nnn := range nn {
+		scnd.WriteByte('"')
+		scnd.WriteString(i)
+		scnd.WriteByte('"')
+		scnd.WriteByte(':')
+
+		for _, fts := range mw.FieldsToSkip {
+			if string(i) == fts {
+				scnd.WriteString(fmt.Sprintf("%q", nnn))
+				scnd.WriteByte(',')
+				continue Top
+			}
+		}
+
+		//var r = reflect.TypeOf(nnn)
+		//fmt.Printf("REiterate  Type!:%v\n", r)
+		var apndBuff bytes.Buffer
+		apndBuff = mw.reiterateInterface(nnn, apndBuff, p)
+		scnd.WriteString(apndBuff.String())
+
+		//switch nnnn := nnn.(type) {
+		//case json.Number:
+		//	scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
+
+		//default:
+		//	scnd.WriteByte('"')
+		//	scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
+		//	scnd.WriteByte('"')
+		//}
+		//scnd.WriteByte(',')
+	}
+	scnd.Truncate(scnd.Len() - 1) // remove last ','
+	scnd.WriteByte('}')
+	return scnd
 }
 
 // TODO

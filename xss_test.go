@@ -177,6 +177,104 @@ func TestSupportNestedJSONPost(t *testing.T) {
 	userB := `{"id":2,  "flt":2.345, "user":"` + user2 + `", "email": "` + email2 + `", "password":"` + password2 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
 
 	oParams := `{"id":1, "users": [ ` + userA + `,` + userB + `]}`
+	// YES Can Parse This
+	//oParams = `{
+	//"id": "0001",
+	//"type": "donut",
+	//"name": "Cake",
+	//"ppu": 0.55,
+	//"batters":
+	//	{
+	//		"batter":
+	//			[
+	//				{ "id": "1001", "type": "Regular" },
+	//				{ "id": "1002", "type": "Chocolate" },
+	//				{ "id": "1003", "type": "Blueberry" },
+	//				{ "id": "1004", "type": "Devil's Food" }
+	//			]
+	//	},
+	//"topping":
+	//	[
+	//		{ "id": "5001", "type": "None" },
+	//		{ "id": "5002", "type": "Glazed" },
+	//		{ "id": "5005", "type": "Sugar" },
+	//		{ "id": "5007", "type": "Powdered Sugar" },
+	//		{ "id": "5006", "type": "Chocolate with Sprinkles" },
+	//		{ "id": "5003", "type": "Chocolate" },
+	//		{ "id": "5004", "type": "Maple" }
+	//	]
+	//}`
+	// YES - Parses all correctly BUT does not collect all together, so only last record is returned
+	//oParams = `[
+	//{
+	//	"id": "0001",
+	//	"type": "donut",
+	//	"name": "Cake",
+	//	"ppu": 0.55,
+	//	"batters":
+	//		{
+	//			"batter":
+	//				[
+	//					{ "id": "1001", "type": "Regular" },
+	//					{ "id": "1002", "type": "Chocolate" },
+	//					{ "id": "1003", "type": "Blueberry" },
+	//					{ "id": "1004", "type": "Devil's Food" }
+	//				]
+	//		},
+	//	"topping":
+	//		[
+	//			{ "id": "5001", "type": "None" },
+	//			{ "id": "5002", "type": "Glazed" },
+	//			{ "id": "5005", "type": "Sugar" },
+	//			{ "id": "5007", "type": "Powdered Sugar" },
+	//			{ "id": "5006", "type": "Chocolate with Sprinkles" },
+	//			{ "id": "5003", "type": "Chocolate" },
+	//			{ "id": "5004", "type": "Maple" }
+	//		]
+	//},
+	//{
+	//	"id": "0002",
+	//	"type": "donut",
+	//	"name": "Raised",
+	//	"ppu": 0.55,
+	//	"batters":
+	//		{
+	//			"batter":
+	//				[
+	//					{ "id": "1001", "type": "Regular" }
+	//				]
+	//		},
+	//	"topping":
+	//		[
+	//			{ "id": "5001", "type": "None" },
+	//			{ "id": "5002", "type": "Glazed" },
+	//			{ "id": "5005", "type": "Sugar" },
+	//			{ "id": "5003", "type": "Chocolate" },
+	//			{ "id": "5004", "type": "Maple" }
+	//		]
+	//},
+	//{
+	//	"id": "0003",
+	//	"type": "donut",
+	//	"name": "Old Fashioned",
+	//	"ppu": 0.55,
+	//	"batters":
+	//		{
+	//			"batter":
+	//				[
+	//					{ "id": "1001", "type": "Regular" },
+	//					{ "id": "1002", "type": "Chocolate" }
+	//				]
+	//		},
+	//	"topping":
+	//		[
+	//			{ "id": "5001", "type": "None" },
+	//			{ "id": "5002", "type": "Glazed" },
+	//			{ "id": "5003", "type": "Chocolate" },
+	//			{ "id": "5004", "type": "Maple" }
+	//		]
+	//}
+	//]`
 
 	req, _ := http.NewRequest("POST", "/user_post_nested_json", bytes.NewBufferString(oParams))
 	req.Header.Add("Content-Type", "application/json")
