@@ -421,6 +421,9 @@ func (mw *XssMw) HandleJson(c *gin.Context) error {
 	if err != nil {
 		return err
 	}
+	//fmt.Println("DONE JSON")
+	//fmt.Println(buff.String())
+
 	err = mw.SetRequestBodyJson(c, buff)
 	if err != nil {
 		//fmt.Println("Set request body failed")
@@ -446,7 +449,8 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod interface{}) (bytes.
 	case map[string]interface{}:
 		//fmt.Printf("\n\n\n1st type\n\n\n")
 		xmj := jsonBod.(map[string]interface{})
-		buff := mw.ConstructJson(xmj)
+		var sbuff bytes.Buffer
+		buff := mw.ConstructJson(xmj, sbuff)
 		return buff, nil
 	// TODO: need a test to prove this
 	case []interface{}:
@@ -455,7 +459,8 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod interface{}) (bytes.
 		for _, n := range jbt {
 			//fmt.Printf("Item: %v= %v\n", i, n)
 			xmj := n.(map[string]interface{})
-			buff = mw.ConstructJson(xmj)
+			var sbuff bytes.Buffer
+			buff = mw.ConstructJson(xmj, sbuff)
 			multiRec.WriteString(buff.String())
 			multiRec.WriteByte(',')
 		}
@@ -499,18 +504,14 @@ func (mw *XssMw) SetRequestBodyJson(c *gin.Context, buff bytes.Buffer) error {
 // keeps the good content to construct
 // returns the cleaned http request
 // Map to Bytes (struct to json string...)
-func (mw *XssMw) ConstructJson(xmj XssMwJson) bytes.Buffer {
-	//fmt.Printf("JSON BOD: %#v\n", xmj)
-
-	var buff bytes.Buffer
+func (mw *XssMw) ConstructJson(xmj XssMwJson, buff bytes.Buffer) bytes.Buffer {
+	//var buff bytes.Buffer
 	buff.WriteByte('{')
 
 	p := mw.GetBlueMondayPolicy()
 
-	m := xmj //m := jsonBod.(map[string]interface{})
+	m := xmj
 	for k, v := range m {
-		//fmt.Println(k, v)
-
 		buff.WriteByte('"')
 		buff.WriteString(k)
 		buff.WriteByte('"')
@@ -538,177 +539,46 @@ func (mw *XssMw) ConstructJson(xmj XssMwJson) bytes.Buffer {
 	buff.Truncate(buff.Len() - 1) // remove last ','
 	buff.WriteByte('}')
 
-	//fmt.Println("TOP CONSTRUCT JSON")
-	//fmt.Println(buff.String())
 	return buff
 }
 
-func (mw *XssMw) buildJsonApplyPolicy(v interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
-	switch vv := v.(type) { // FYI, JSON data is string or float
+func (mw *XssMw) buildJsonApplyPolicy(interf interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
+	switch v := interf.(type) {
+	case map[string]interface{}:
+		var sbuff bytes.Buffer
+		scnd := mw.ConstructJson(v, sbuff)
+		buff.WriteString(scnd.String())
+		buff.WriteByte(',')
+	case []interface{}:
+		b := mw.unravelSlice(v)
+		buff.WriteString(b.String())
+		buff.WriteByte(',')
+	case json.Number:
+		buff.WriteString(p.Sanitize(fmt.Sprintf("%v", v)))
+		buff.WriteByte(',')
 	case string:
-		//fmt.Println(k, "is string", vv)
-		//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
-		buff.WriteString(fmt.Sprintf("%q", p.Sanitize(vv)))
+		buff.WriteString(fmt.Sprintf("%q", p.Sanitize(v)))
 		buff.WriteByte(',')
 	case float64:
-		//fmt.Println(k, "is float", vv)
-		//buff.WriteString(strconv.FormatFloat(vv, 'g', 0, 64))
-		//buff.WriteString(html.EscapeString(strconv.FormatFloat(vv, 'g', 0, 64)))
-		buff.WriteString(p.Sanitize(strconv.FormatFloat(vv, 'g', 0, 64)))
+		buff.WriteString(p.Sanitize(strconv.FormatFloat(v, 'g', 0, 64)))
 		buff.WriteByte(',')
-	default:
-		var b bytes.Buffer
-		apndBuff := mw.reiterateInterface(vv, b, p)
-		buff.WriteString(apndBuff.String())
 	}
 	return buff
 }
 
-func (mw *XssMw) reiterateInterface(vv interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
-	switch vvv := vv.(type) {
-	// map[string]interface {}{"id":"1", "assoc_ids":[]interface {}{"1", "4", "8"}}
-	case map[string]interface{}:
-		//fmt.Println("map[string]interface{}")
-		scnd := mw.reiterateMapStringInterfaceSlice(vvv, buff, p)
-		buff.WriteString(scnd.String())
-		buff.WriteByte(',') // add cause expected
-	case []interface{}:
-		//fmt.Println("[]interface{}")
-		//var b bytes.Buffer
-		b := mw.reiterateInterfaceSlice(vvv, buff, p)
-		buff.WriteString(b.String())
-		buff.WriteByte(',') // add cause expected
-	case json.Number:
-		//fmt.Println("is number", vvv)
-		//buff.WriteString(`"` + p.Sanitize(vv) + `",`)
-		buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
-		buff.WriteByte(',')
-	case string:
-		//fmt.Println("is string", vvv)
-		buff.WriteByte('"')
-		buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
-		buff.WriteByte('"')
-		buff.WriteByte(',')
-	default:
-		//fmt.Println("IN DEFAULT I don't know how to handle")
-		//var r = reflect.TypeOf(vvv)
-		//fmt.Printf("IN DEFAULT Unknown Type!:%v\n", r)
-
-		if vvv == nil {
-			buff.WriteString(fmt.Sprintf("%s", "null"))
-		} else {
-			buff.WriteString(p.Sanitize(fmt.Sprintf("%v", vvv)))
-		}
-		buff.WriteByte(',')
-	}
-
-	//fmt.Printf("Reiterate Interface %v", buff.String())
-	return buff
-}
-
-func (mw *XssMw) reiterateInterfaceSlice(vvv []interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
-	//fmt.Println("IN reiterateInterfaceSlice")
-	//switch vvvv := vvv.(type) {
-	//case map[string]interface{}:
-	var lst bytes.Buffer
-	lst.WriteByte('[')
-	for _, n := range vvv {
-		//fmt.Printf("Iter: %v= %v\n", i, n)
-		//fmt.Println("IN REITERATE")
-		//var r = reflect.TypeOf(n)
-		//fmt.Printf("REiterate  Type!:%v\n", r)
+func (mw *XssMw) unravelSlice(slce []interface{}) bytes.Buffer {
+	var buff bytes.Buffer
+	buff.WriteByte('[')
+	for _, n := range slce {
 		switch nn := n.(type) {
 		case map[string]interface{}:
-			scnd := mw.reiterateMapStringInterfaceSlice(nn, lst, p)
-			lst.WriteString(scnd.String())
-			lst.WriteByte(',') // add cause expected
-		case []interface{}:
-			//fmt.Println("MAPY []interface{}")
-			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		case json.Number:
-			//fmt.Println("json.Number")
-			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		case string:
-			//fmt.Println("float 64")
-			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		case float64:
-			//fmt.Println("float 64")
-			lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		default:
-			//fmt.Println("DEFAULT")
-			//fmt.Printf("nn %v", nn)
+			var sbuff bytes.Buffer
+			scnd := mw.ConstructJson(nn, sbuff)
+			buff.WriteString(scnd.String())
+			buff.WriteByte(',')
 		}
-
-		//lst.WriteString(p.Sanitize(fmt.Sprintf("\"%v\"", n)))
-		// NOTE changes from ["1", "4", "8"] to [1,4,8]
-		//lst.WriteString(p.Sanitize(fmt.Sprintf("%v", n)))
-		//lst.WriteByte(',')
 	}
-	lst.Truncate(lst.Len() - 1) // remove last ','
-	lst.WriteByte(']')
-	//default:
-	//	fmt.Printf("REiterate Default")
-	//}
-	return lst
+	buff.Truncate(buff.Len() - 1) // remove last ','
+	buff.WriteByte(']')
+	return buff
 }
-
-func (mw *XssMw) reiterateMapStringInterfaceSlice(nn map[string]interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
-	//fmt.Println("MAPY map[string]interface{}")
-	////moo := mw.reiterateInterface(nn, buff, p)
-	////lst.WriteString(moo.String())
-	var scnd bytes.Buffer
-	scnd.WriteByte('{')
-Top:
-	for i, nnn := range nn {
-		scnd.WriteByte('"')
-		scnd.WriteString(i)
-		scnd.WriteByte('"')
-		scnd.WriteByte(':')
-
-		for _, fts := range mw.FieldsToSkip {
-			if string(i) == fts {
-				scnd.WriteString(fmt.Sprintf("%q", nnn))
-				scnd.WriteByte(',')
-				continue Top
-			}
-		}
-
-		//var r = reflect.TypeOf(nnn)
-		//fmt.Printf("REiterate  Type!:%v\n", r)
-		var apndBuff bytes.Buffer
-		apndBuff = mw.reiterateInterface(nnn, apndBuff, p)
-		scnd.WriteString(apndBuff.String())
-
-		//switch nnnn := nnn.(type) {
-		//case json.Number:
-		//	scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
-
-		//default:
-		//	scnd.WriteByte('"')
-		//	scnd.WriteString(p.Sanitize(fmt.Sprintf("%v", nnnn)))
-		//	scnd.WriteByte('"')
-		//}
-		//scnd.WriteByte(',')
-	}
-	scnd.Truncate(scnd.Len() - 1) // remove last ','
-	scnd.WriteByte('}')
-	return scnd
-}
-
-// TODO
-// add feature to accept all content in Request and filter out on Response
-// NOTE: I don't know how to achieve this yet... will something like this help?
-// gin help said call Next first to capture Response
-//func ConstructRequest(next http.Handler) http.Handler {
-//	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//		fmt.Println(r.Method, "-", r.RequestURI)
-//		cookie, _ := r.Cookie("username")
-//		if cookie != nil {
-//			//Add data to context
-//			ctx := context.WithValue(r.Context(), "Username", cookie.Value)
-//			next.ServeHTTP(w, r.WithContext(ctx))
-//		} else {
-//			next.ServeHTTP(w, r)
-//		}
-//	})
-//}

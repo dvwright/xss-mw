@@ -204,7 +204,7 @@ func TestSupportNestedJSONPost(t *testing.T) {
 	//		{ "id": "5004", "type": "Maple" }
 	//	]
 	//}`
-	// YES - Parses all correctly BUT does not collect all together, so only last record is returned
+	// YES - Parses correctly
 	//oParams = `[
 	//{
 	//	"id": "0001",
