@@ -275,6 +275,7 @@ func TestSupportNestedJSONPost(t *testing.T) {
 	//		]
 	//}
 	//]`
+	//oParams = `{"comment": "test", "id": 0, "media_id": 381, "parent_id": 0, "status": null, "updated_at": 1540673110}`
 
 	req, _ := http.NewRequest("POST", "/user_post_nested_json", bytes.NewBufferString(oParams))
 	req.Header.Add("Content-Type", "application/json")

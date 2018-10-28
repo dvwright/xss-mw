@@ -562,6 +562,14 @@ func (mw *XssMw) buildJsonApplyPolicy(interf interface{}, buff bytes.Buffer, p *
 	case float64:
 		buff.WriteString(p.Sanitize(strconv.FormatFloat(v, 'g', 0, 64)))
 		buff.WriteByte(',')
+	default:
+		if v == nil {
+			buff.WriteString(fmt.Sprintf("%s", "null"))
+			buff.WriteByte(',')
+		} else {
+			buff.WriteString(p.Sanitize(fmt.Sprintf("%v", v)))
+			buff.WriteByte(',')
+		}
 	}
 	return buff
 }
