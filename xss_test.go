@@ -103,18 +103,18 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 		c.JSON(200, usr)
 	})
 
-	//// nested JSON
-	//r.POST("/user_post_nested_json", func(c *gin.Context) {
-	//	var users Users
-	//	// fmt.Printf("%#v", users)
-	//	err := c.Bind(&users)
-	//	if err != nil {
-	//		//fmt.Println(err)
-	//		c.JSON(404, gin.H{"msg": "Bind Failed."})
-	//		return
-	//	}
-	//	c.JSON(201, users)
-	//})
+	// nested JSON
+	r.POST("/user_post_nested_json", func(c *gin.Context) {
+		var users Users
+		// fmt.Printf("%#v", users)
+		err := c.Bind(&users)
+		if err != nil {
+			//fmt.Println(err)
+			c.JSON(404, gin.H{"msg": "Bind Failed."})
+			return
+		}
+		c.JSON(201, users)
+	})
 
 	return r
 }
@@ -157,49 +157,149 @@ func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
-//func TestSupportNestedJSONPost(t *testing.T) {
-//	log.SetOutput(ioutil.Discard)
-//	defer log.SetOutput(os.Stderr)
-//
-//	var xssMdlwr XssMw
-//	s := newServer(xssMdlwr)
-//
-//	user1 := "TestUser1"
-//	email1 := "testUser1@example.com"
-//	password1 := "!@$%^ASDF<html>1"
-//	cmnt := `<img src=x onerror=alert(0)>`
-//	cre_at := "1481017167"
-//	userA := `{"id":1,  "flt":1.345, "user":"` + user1 + `", "email": "` + email1 + `", "password":"` + password1 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
-//
-//	user2 := "TestUser2"
-//	email2 := "testUser2@example.com"
-//	password2 := "!@$%^ASDF<html>2"
-//	userB := `{"id":2,  "flt":2.345, "user":"` + user2 + `", "email": "` + email2 + `", "password":"` + password2 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
-//
-//	oParams := `{"id":1, "users": [ ` + userA + `,` + userB + `]}`
-//
-//	req, _ := http.NewRequest("POST", "/user_post_nested_json", bytes.NewBufferString(oParams))
-//	req.Header.Add("Content-Type", "application/json")
-//	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
-//
-//	resp := httptest.NewRecorder()
-//	s.ServeHTTP(resp, req)
-//
-//	assert.Equal(t, 201, resp.Code)
-//	expStr := `{
-//            "id":1,
-//			"users":[
-//			  {"id":1, "flt":1.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v},
-//              {"id":2, "flt":2.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v}
-//			]
-//        }`
-//
-//	expect := fmt.Sprintf(expStr, user1, email1, password1, cmnt, cre_at, user2, email2, password2, cmnt, cre_at)
-//	fmt.Println(expect)
-//
-//	fmt.Println(resp.Body.String())
-//	assert.JSONEq(t, expect, resp.Body.String())
-//}
+func TestSupportNestedJSONPost(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
+
+	user1 := "TestUser1"
+	email1 := "testUser1@example.com"
+	password1 := "!@$%^ASDF<html>1"
+	cmnt := `<img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+	userA := `{"id":1,  "flt":1.345, "user":"` + user1 + `", "email": "` + email1 + `", "password":"` + password1 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+
+	user2 := "TestUser2"
+	email2 := "testUser2@example.com"
+	password2 := "!@$%^ASDF<html>2"
+	userB := `{"id":2,  "flt":2.345, "user":"` + user2 + `", "email": "` + email2 + `", "password":"` + password2 + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+
+	oParams := `{"id":1, "users": [ ` + userA + `,` + userB + `]}`
+	// YES Can Parse This
+	//oParams = `{
+	//"id": "0001",
+	//"type": "donut",
+	//"name": "Cake",
+	//"ppu": 0.55,
+	//"batters":
+	//	{
+	//		"batter":
+	//			[
+	//				{ "id": "1001", "type": "Regular" },
+	//				{ "id": "1002", "type": "Chocolate" },
+	//				{ "id": "1003", "type": "Blueberry" },
+	//				{ "id": "1004", "type": "Devil's Food" }
+	//			]
+	//	},
+	//"topping":
+	//	[
+	//		{ "id": "5001", "type": "None" },
+	//		{ "id": "5002", "type": "Glazed" },
+	//		{ "id": "5005", "type": "Sugar" },
+	//		{ "id": "5007", "type": "Powdered Sugar" },
+	//		{ "id": "5006", "type": "Chocolate with Sprinkles" },
+	//		{ "id": "5003", "type": "Chocolate" },
+	//		{ "id": "5004", "type": "Maple" }
+	//	]
+	//}`
+	// YES - Parses correctly
+	//oParams = `[
+	//{
+	//	"id": "0001",
+	//	"type": "donut",
+	//	"name": "Cake",
+	//	"ppu": 0.55,
+	//	"batters":
+	//		{
+	//			"batter":
+	//				[
+	//					{ "id": "1001", "type": "Regular" },
+	//					{ "id": "1002", "type": "Chocolate" },
+	//					{ "id": "1003", "type": "Blueberry" },
+	//					{ "id": "1004", "type": "Devil's Food" }
+	//				]
+	//		},
+	//	"topping":
+	//		[
+	//			{ "id": "5001", "type": "None" },
+	//			{ "id": "5002", "type": "Glazed" },
+	//			{ "id": "5005", "type": "Sugar" },
+	//			{ "id": "5007", "type": "Powdered Sugar" },
+	//			{ "id": "5006", "type": "Chocolate with Sprinkles" },
+	//			{ "id": "5003", "type": "Chocolate" },
+	//			{ "id": "5004", "type": "Maple" }
+	//		]
+	//},
+	//{
+	//	"id": "0002",
+	//	"type": "donut",
+	//	"name": "Raised",
+	//	"ppu": 0.55,
+	//	"batters":
+	//		{
+	//			"batter":
+	//				[
+	//					{ "id": "1001", "type": "Regular" }
+	//				]
+	//		},
+	//	"topping":
+	//		[
+	//			{ "id": "5001", "type": "None" },
+	//			{ "id": "5002", "type": "Glazed" },
+	//			{ "id": "5005", "type": "Sugar" },
+	//			{ "id": "5003", "type": "Chocolate" },
+	//			{ "id": "5004", "type": "Maple" }
+	//		]
+	//},
+	//{
+	//	"id": "0003",
+	//	"type": "donut",
+	//	"name": "Old Fashioned",
+	//	"ppu": 0.55,
+	//	"batters":
+	//		{
+	//			"batter":
+	//				[
+	//					{ "id": "1001", "type": "Regular" },
+	//					{ "id": "1002", "type": "Chocolate" }
+	//				]
+	//		},
+	//	"topping":
+	//		[
+	//			{ "id": "5001", "type": "None" },
+	//			{ "id": "5002", "type": "Glazed" },
+	//			{ "id": "5003", "type": "Chocolate" },
+	//			{ "id": "5004", "type": "Maple" }
+	//		]
+	//}
+	//]`
+	//oParams = `{"comment": "test", "id": 0, "media_id": 381, "parent_id": 0, "status": null, "updated_at": 1540673110}`
+
+	req, _ := http.NewRequest("POST", "/user_post_nested_json", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":1,
+			"users":[
+			  {"id":1, "flt":1.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v},
+              {"id":2, "flt":2.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v}
+			]
+        }`
+
+	cmnt_clnd := `` // malicious markup content stripped
+	expect := fmt.Sprintf(expStr, user1, email1, password1, cmnt_clnd, cre_at, user2, email2, password2, cmnt_clnd, cre_at)
+	//fmt.Println(expect)
+
+	//fmt.Println(resp.Body.String())
+	assert.JSONEq(t, expect, resp.Body.String())
+}
 
 func TestKeepsValuesStripsHtmlOnPut(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
