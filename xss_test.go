@@ -40,6 +40,18 @@ type Users struct {
 	Users []User `json:"users"`
 }
 
+type UserExtended struct {
+	Id       int      `json:"id" form:"id" binding:"required"`
+	Flt      float64  `json:"flt" form:"flt"`
+	User     string   `json:"user" form:"user"`
+	Email    string   `json:"email" form:"email"`
+	Password string   `json:"password" form:"password"`
+	CreAt    int64    `json:"cre_at" form:"cre_at"`
+	Comment  string   `json:"comment" form:"comment"`
+	Users    []User   `json:"users"`
+	Ids      []string `json:"ids"`
+}
+
 // Test as Gin Middleware
 func newServer(xssMdlwr XssMw) *gin.Engine {
 
@@ -103,6 +115,18 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 		c.JSON(200, usr)
 	})
 
+	r.POST("/user_extended", func(c *gin.Context) {
+		var userExtnd UserExtended
+		// fmt.Printf("%#v", userExtnd)
+		err := c.Bind(&userExtnd)
+		if err != nil {
+			//fmt.Println(err)
+			c.JSON(404, gin.H{"msg": "Bind Failed."})
+			return
+		}
+		c.JSON(201, userExtnd)
+	})
+
 	// nested JSON
 	r.POST("/user_post_nested_json", func(c *gin.Context) {
 		var users Users
@@ -154,6 +178,51 @@ func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {
 	cmnt_clnd := `` // malicious markup content stripped
 
 	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at)
+	assert.JSONEq(t, expect, resp.Body.String())
+}
+
+func TestSupportsList(t *testing.T) {
+	// don't want to see log message while running tests
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
+
+	user := "TestUser"
+	email := "testUser@example.com"
+	password := "!@$%^ASDF<html>"
+	cmnt := `<img src=x onerror=alert(0)>`
+	cre_at := "1481017167"
+	userA := `{"id":1,  "flt":1.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `}`
+	oParams := `{"id":1,  "flt":2.345, "user":"` + user + `", "email": "` + email + `", "password":"` + password + `", "comment":"` + cmnt + `", "cre_at":` + cre_at + `, "users": [ ` + userA + `], "ids": ["4.4563", "Bill", "8", "14", "900001"] }`
+	req, _ := http.NewRequest("POST", "/user_extended", bytes.NewBufferString(oParams))
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Content-Length", strconv.Itoa(len(oParams)))
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":1,
+			"flt":2.345,
+			"user":"%v",
+			"email":"%v",
+			"password":"%v",
+			"comment":"%v",
+			"cre_at":%v,
+			"users":[
+			  {"id":1, "flt":1.345, "user":"%v", "email":"%v", "password":"%v", "comment":"%v", "cre_at":%v}
+			 ],
+			"ids": ["4.4563","Bill","8","14","900001"]
+        }`
+
+	cmnt_clnd := `` // malicious markup content stripped
+	expect := fmt.Sprintf(expStr, user, email, password, cmnt_clnd, cre_at, user, email, password, cmnt_clnd, cre_at)
+	//fmt.Println(expect)
+
+	//fmt.Println(resp.Body.String())
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
