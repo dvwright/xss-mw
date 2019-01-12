@@ -201,7 +201,6 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 				return err
 			}
 		}
-
 	}
 	// if here, all should be well or nothing was actually done,
 	// either way return happily
@@ -229,6 +228,9 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 	//fmt.Println("TODO handle application/x-www-form-urlencoded")
 	//dump, _ := httputil.DumpRequest(c.Request, true)
 	//fmt.Printf("%q", dump)
+	if c.Request.Body == nil {
+		return nil
+	}
 
 	// https://golang.org/src/net/http/httputil/dump.go
 	var buf bytes.Buffer
@@ -266,6 +268,8 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 		}
 		bq.WriteByte('&')
 	}
+	// if bytes.IndexByte(bq, byte('&')) = -1 ; return c.Request.Body
+
 	bq.Truncate(bq.Len() - 1) // remove last '&'
 	bodOut := bq.String()
 
