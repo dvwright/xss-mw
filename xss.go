@@ -268,12 +268,14 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 		}
 		bq.WriteByte('&')
 	}
-	// if bytes.IndexByte(bq, byte('&')) = -1 ; return c.Request.Body
 
-	bq.Truncate(bq.Len() - 1) // remove last '&'
-	bodOut := bq.String()
-
-	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bodOut)))
+	if bq.Len() > 1 {
+		bq.Truncate(bq.Len() - 1) // remove last '&'
+		bodOut := bq.String()
+		c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bodOut)))
+	} else {
+		c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buf.String())))
+	}
 
 	return nil
 }
