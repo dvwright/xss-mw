@@ -169,7 +169,45 @@ func TestKeepsValuesStripsHtmlOnGet(t *testing.T) {
 	name := "<img src=x onerror=alert(0)>"
 	email := "testUser@example.com<html>"
 
-	req, _ := http.NewRequest("GET", "/user?id="+id+"&name="+name+"&email="+email, nil)
+	var queryParams = url.Values{}
+	queryParams.Set("id", id)
+	queryParams.Set("name", name)
+	queryParams.Set("email", email)
+
+	req, _ := http.NewRequest("GET", "/user?"+queryParams.Encode(), nil)
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":"%v",
+			"name":"%v",
+			"email": "%v"
+		}`
+
+	expect := fmt.Sprintf(expStr, id, "", "testUser@example.com")
+	assert.JSONEq(t, expect, resp.Body.String())
+}
+
+func TestKeepsValuesStripsHtmlWithSkipOnGet(t *testing.T) {
+	// don't want to see log message while running tests
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	var xssMdlwr XssMw
+	xssMdlwr.FieldsToSkip = []string{"id"}
+	s := newServer(xssMdlwr)
+
+	id := "2<img src=x onerror=alert(0)>"
+	name := "<img src=x onerror=alert(0)>"
+	email := "testUser@example.com<html>"
+
+	var queryParams = url.Values{}
+	queryParams.Set("id", id)
+	queryParams.Set("name", name)
+	queryParams.Set("email", email)
+
+	req, _ := http.NewRequest("GET", "/user?"+queryParams.Encode(), nil)
 	resp := httptest.NewRecorder()
 	s.ServeHTTP(resp, req)
 

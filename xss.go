@@ -220,7 +220,14 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 func (mw *XssMw) HandleGETRequest(c *gin.Context) error {
 	p := mw.GetBlueMondayPolicy()
 	queryParams := c.Request.URL.Query()
+	var fieldToSkip = map[string]bool{}
+	for _, fts := range mw.FieldsToSkip {
+		fieldToSkip[fts] = true
+	}
 	for key, items := range queryParams {
+		if fieldToSkip[key] {
+			continue
+		}
 		queryParams.Del(key)
 		for _, item := range items {
 			queryParams.Set(key, p.Sanitize(item))
