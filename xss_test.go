@@ -7,15 +7,16 @@ package xss
 // see https://raw.githubusercontent.com/gin-gonic/contrib/master/secure/secure_test.go
 
 import (
-	"github.com/gin-gonic/gin"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/gin-gonic/gin"
+
 	//"reflect"
 	"bytes"
 	//"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -23,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type User struct {
@@ -63,6 +66,17 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 
 	r.GET("/user/:id", func(c *gin.Context) {
 		c.String(200, fmt.Sprintf("%v", c.Request.Body))
+	})
+
+	r.GET("/user", func(c *gin.Context) {
+		var id = c.DefaultQuery("id", "")
+		var userName = c.DefaultQuery("name", "")
+		var email = c.DefaultQuery("email", "")
+		c.JSON(201, gin.H{
+			"id":    id,
+			"name":  userName,
+			"email": email,
+		})
 	})
 
 	r.PUT("/user", func(c *gin.Context) {
@@ -141,6 +155,33 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 	})
 
 	return r
+}
+
+func TestKeepsValuesStripsHtmlOnGet(t *testing.T) {
+	// don't want to see log message while running tests
+	log.SetOutput(ioutil.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
+
+	id := "2"
+	name := "<img src=x onerror=alert(0)>"
+	email := "testUser@example.com<html>"
+
+	req, _ := http.NewRequest("GET", "/user?id="+id+"&name="+name+"&email="+email, nil)
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+	expStr := `{
+            "id":"%v",
+			"name":"%v",
+			"email": "%v"
+		}`
+
+	expect := fmt.Sprintf(expStr, id, "", "testUser@example.com")
+	assert.JSONEq(t, expect, resp.Body.String())
 }
 
 func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {

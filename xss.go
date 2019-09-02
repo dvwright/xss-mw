@@ -227,6 +227,7 @@ func (mw *XssMw) HandleGETRequest(c *gin.Context) error {
 		}
 	}
 	c.Request.URL.RawQuery = queryParams.Encode()
+	return nil
 }
 
 // XXX file part uploads?
