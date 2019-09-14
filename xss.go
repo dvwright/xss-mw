@@ -36,16 +36,20 @@ package xss
 
 import (
 	"errors"
+
 	"github.com/gin-gonic/gin"
+
 	//"net/http/httputil" // debugging
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/microcosm-cc/bluemonday"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/url"
+
+	"github.com/microcosm-cc/bluemonday"
+
 	//"reflect" // debugging type
 	"strconv"
 	"strings"
@@ -201,9 +205,35 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 				return err
 			}
 		}
+	} else if ReqMethod == "GET" {
+		err := mw.HandleGETRequest(c)
+		if err != nil {
+			return err
+		}
 	}
 	// if here, all should be well or nothing was actually done,
 	// either way return happily
+	return nil
+}
+
+// HandleGETRequest handles get request
+func (mw *XssMw) HandleGETRequest(c *gin.Context) error {
+	p := mw.GetBlueMondayPolicy()
+	queryParams := c.Request.URL.Query()
+	var fieldToSkip = map[string]bool{}
+	for _, fts := range mw.FieldsToSkip {
+		fieldToSkip[fts] = true
+	}
+	for key, items := range queryParams {
+		if fieldToSkip[key] {
+			continue
+		}
+		queryParams.Del(key)
+		for _, item := range items {
+			queryParams.Set(key, p.Sanitize(item))
+		}
+	}
+	c.Request.URL.RawQuery = queryParams.Encode()
 	return nil
 }
 
