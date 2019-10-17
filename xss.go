@@ -4,7 +4,7 @@
 
 // XssMw provides an "auto remove XSS" from all user submitted input.
 //
-// It's applied on POST and PUT Requests only.
+// It's applied on POST, PUT, and GET Requests only.
 //
 // We currently support three Request types:
 //
