@@ -6,7 +6,7 @@ web framework which utilizes Golang's "net/http" native library in a similiar wa
 
 The idea behind XssMw is to "auto remove XSS" from user submitted input. 
 
-It's applied on http POST and PUT Requests only
+It's applied on http GET, POST and PUT Requests only
 
 The XSS filtering is performed by HTML sanitizer [Bluemonday](https://github.com/microcosm-cc/bluemonday).
 
