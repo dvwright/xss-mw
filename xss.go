@@ -623,9 +623,25 @@ func (mw *XssMw) unravelSlice(slce []interface{}, p *bluemonday.Policy) bytes.Bu
 		case string:
 			buff.WriteString(fmt.Sprintf("%q", p.Sanitize(nn)))
 			buff.WriteByte(',')
+		case json.Number:
+			buff.WriteString(p.Sanitize(fmt.Sprintf("%v", nn)))
+			buff.WriteByte(',')
+		case float64:
+			buff.WriteString(p.Sanitize(strconv.FormatFloat(nn, 'g', 0, 64)))
+			buff.WriteByte(',')
+		default:
+			if nn == nil {
+				buff.WriteString(fmt.Sprintf("%s", "null"))
+				buff.WriteByte(',')
+			} else {
+				buff.WriteString(p.Sanitize(fmt.Sprintf("%v", nn)))
+				buff.WriteByte(',')
+			}
 		}
 	}
-	buff.Truncate(buff.Len() - 1) // remove last ','
+	if len(slce) > 0 {
+		buff.Truncate(buff.Len() - 1) // remove last ','
+	}
 	buff.WriteByte(']')
 	return buff
 }
