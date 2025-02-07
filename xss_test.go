@@ -581,7 +581,7 @@ func TestPasswordIsNotFiltered(t *testing.T) {
 // multipart form posts really need to be filtered!
 // TODO careful with content body such as files, images, audio files, etc!
 // Content-Disposition: form-data; name="comment"
-//>'>\"><img src=x onerror=alert(0)>
+// >'>\"><img src=x onerror=alert(0)>
 func TestXssFiltersMultiPartFormData(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
@@ -649,11 +649,11 @@ func TestXssFiltersMultiPartFormData(t *testing.T) {
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
-//TODO
+// TODO
 // POST /post?id=1234&page=1 HTTP/1.1
 // Content-Type: application/x-www-form-urlencoded
-//name=manu&message=this_is_great
-//application/x-www-form-urlencoded
+// name=manu&message=this_is_great
+// application/x-www-form-urlencoded
 func TestXssFiltersXFormEncoded(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
@@ -715,7 +715,8 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
 // TODO - prove Headers and Other Request fields left intact
 // Prove Headers left untouched
 // for example
-//      req.Header.Add("Authorization", "Bearer "+authToken)
+//
+//	req.Header.Add("Authorization", "Bearer "+authToken)
 func TestKeepsHeadersIntact(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 	defer log.SetOutput(os.Stderr)
@@ -812,3 +813,61 @@ func TestUGCPolityAllowSomeHTMLOnPost(t *testing.T) {
 
 // TODO
 // prove the 3 types of filtering
+
+// TestHandleGETRequest Multiple parameter test
+func TestHandleGETRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name           string
+		url            string
+		fieldsToSkip   []string
+		expectedParams map[string][]string
+	}{
+		{
+			name:         "Multiple values for same parameter",
+			url:          "/test?tag=value1&tag=value2&tag=value3",
+			fieldsToSkip: []string{},
+			expectedParams: map[string][]string{
+				"tag": {"value1", "value2", "value3"},
+			},
+		},
+		{
+			name:         "Skip specific fields",
+			url:          "/test?tag=value1&safe=value2",
+			fieldsToSkip: []string{"safe"},
+			expectedParams: map[string][]string{
+				"tag":  {"value1"},
+				"safe": {"value2"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, tt.url, nil)
+			assert.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = req
+
+			mw := &XssMw{
+				FieldsToSkip: tt.fieldsToSkip,
+			}
+
+			err = mw.HandleGETRequest(c)
+			assert.NoError(t, err)
+
+			resultParams := c.Request.URL.Query()
+
+			assert.Equal(t, len(tt.expectedParams), len(resultParams))
+
+			for key, expectedValues := range tt.expectedParams {
+				actualValues, exists := resultParams[key]
+				assert.True(t, exists)
+				assert.ElementsMatch(t, expectedValues, actualValues)
+			}
+		})
+	}
+}
