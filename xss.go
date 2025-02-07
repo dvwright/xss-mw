@@ -14,13 +14,13 @@
 //
 // * Multipart Form Data - Content-Type multipart/form-data
 //
-//
 // XSS filtering is performed by HTML sanitizer https://github.com/microcosm-cc/bluemonday
 //
-// The two packaged policies are available, UGCPolicy or StrictPolicy
+// # The two packaged policies are available, UGCPolicy or StrictPolicy
 //
 // The default is to the strictest policy - StrictPolicy()
-//  use of UGCPolicy is untested at this time
+//
+//	use of UGCPolicy is untested at this time
 package xss
 
 // TODO: support User supplied Bluemondy policy
@@ -146,7 +146,6 @@ func (mw *XssMw) GetBlueMondayPolicy() *bluemonday.Policy {
 // Headers (and other parts of the request) are passed through unaltered.
 //
 // Request Method must be "POST" or "PUT"
-//
 func (mw *XssMw) XssRemove(c *gin.Context) error {
 	//dump, derr := httputil.DumpRequest(c.Request, true)
 	//fmt.Print(derr)
@@ -230,7 +229,7 @@ func (mw *XssMw) HandleGETRequest(c *gin.Context) error {
 		}
 		queryParams.Del(key)
 		for _, item := range items {
-			queryParams.Set(key, p.Sanitize(item))
+			queryParams.Add(key, p.Sanitize(item))
 		}
 	}
 	c.Request.URL.RawQuery = queryParams.Encode()
@@ -244,16 +243,15 @@ func (mw *XssMw) HandleGETRequest(c *gin.Context) error {
 //
 // Has been tested with basic param=value form fields only:
 //
-//     comment=<img src=x onerror=alert(0)>
-//     &cre_at=1481017167
-//     &email=testUser@example.com
-//     &flt=2.345
-//     &id=2
-//     &password=TestPass
-//     &user=TestUser
+//	comment=<img src=x onerror=alert(0)>
+//	&cre_at=1481017167
+//	&email=testUser@example.com
+//	&flt=2.345
+//	&id=2
+//	&password=TestPass
+//	&user=TestUser
 //
 // has not been tested on file/data uploads
-//
 func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 	//fmt.Println("TODO handle application/x-www-form-urlencoded")
 	//dump, _ := httputil.DumpRequest(c.Request, true)
@@ -313,42 +311,44 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 // Handles Content-Type "multipart/form-data"
 //
 // skips sanitizing if file upload
-//    Content-Disposition: form-data; name="" filename=""
+//
+//	Content-Disposition: form-data; name="" filename=""
 //
 // tries to determine Content-type for form data file upload, defaults
 // to application/octet-stream if unknown
 //
 // handles basic form field POST request for example:
-//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//   Content-Disposition: form-data; name="flt"
 //
-//   2.345
-//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//   Content-Disposition: form-data; name="user"
+//	--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//	Content-Disposition: form-data; name="flt"
 //
-//   TestUser
-//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//   Content-Disposition: form-data; name="email"
+//	2.345
+//	--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//	Content-Disposition: form-data; name="user"
 //
-//   testUser@example.com
-//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//   281         }
-//   Content-Disposition: form-data; name="password"
+//	TestUser
+//	--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//	Content-Disposition: form-data; name="email"
 //
-//   !@$%^ASDF
-//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//   Content-Disposition: form-data; name="comment"
+//	testUser@example.com
+//	--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//	281         }
+//	Content-Disposition: form-data; name="password"
 //
-//   &gt;&#39;&gt;\&#34;&gt;
-//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//   Content-Disposition: form-data; name="cre_at"
+//	!@$%^ASDF
+//	--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//	Content-Disposition: form-data; name="comment"
 //
-//   1481017167
-//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
-//   Content-Disposition: form-data; name="id"
+//	&gt;&#39;&gt;\&#34;&gt;
+//	--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//	Content-Disposition: form-data; name="cre_at"
 //
-//   2
-//   --3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909--
+//	1481017167
+//	--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909
+//	Content-Disposition: form-data; name="id"
+//
+//	2
+//	--3af5c5b7adcb2142f404a8e1ce280c47c58e563e3d4c1e172490737c9909--
 //
 // NOTE: form-data name 'password' is skipped (not sanitized)
 func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ctHdr string) error {
@@ -417,36 +417,36 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ctHdr string) error {
 //
 // * 1st type filter - basic key:value - most common
 //
-//    map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
+//	map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
 //
 // * 2nd type an id with associated ids list
 //
-//     map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
+//	map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
+//
 // - NOTE changes from ["1", "4", "8"] to [1,4,8]
 //
 // * 3rd type an "array of records"
 //
-//   []interface {}{
-//      map[string]interface {}{"name":"asd", "url":"/data/1/as",
-//                              "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
-//                              "fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
-//                              "updated_at":"1480791630", "status":"NEW",
-//                              "updated_by":"537", "created_at":"1480450694"},
-//      map[string]interface {}{"name":"asd2", "url":"/data/2/as", etc... },
-//      map[string]interface {}{"name":"asd3", "url":"/data/3/as", etc... },
-//      ...
-//   }
+//	[]interface {}{
+//	   map[string]interface {}{"name":"asd", "url":"/data/1/as",
+//	                           "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
+//	                           "fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
+//	                           "updated_at":"1480791630", "status":"NEW",
+//	                           "updated_by":"537", "created_at":"1480450694"},
+//	   map[string]interface {}{"name":"asd2", "url":"/data/2/as", etc... },
+//	   map[string]interface {}{"name":"asd3", "url":"/data/3/as", etc... },
+//	   ...
+//	}
 //
 // * 4th type "complex array/nested records"
 //
-//  map[string]interface {}{
-//      "id":"1",
-//      "users":[]interface {}{
-//           map[string]interface {}{"id":"1", "flt":"1.345", "user":"TestUser1", "email":"testUser1@example.com", "password":"!@$%^ASDF<html>1", "comment":"<img src=x onerror=alert(0)>", "cre_at":"1481017167"},
-//           map[string]interface {}{"cre_at":"1481017167", "id":"2", "flt":"2.345", "user":"TestUser2", "email":"testUser2@example.com", "password":"!@$%^ASDF<html>2", "comment":"<img src=x onerror=alert(0)>"}
-//      }
-//}
-//
+//	 map[string]interface {}{
+//	     "id":"1",
+//	     "users":[]interface {}{
+//	          map[string]interface {}{"id":"1", "flt":"1.345", "user":"TestUser1", "email":"testUser1@example.com", "password":"!@$%^ASDF<html>1", "comment":"<img src=x onerror=alert(0)>", "cre_at":"1481017167"},
+//	          map[string]interface {}{"cre_at":"1481017167", "id":"2", "flt":"2.345", "user":"TestUser2", "email":"testUser2@example.com", "password":"!@$%^ASDF<html>2", "comment":"<img src=x onerror=alert(0)>"}
+//	     }
+//	}
 func (mw *XssMw) HandleJson(c *gin.Context) error {
 	jsonBod, err := decodeJson(c.Request.Body)
 	if err != nil {
