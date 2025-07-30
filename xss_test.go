@@ -177,6 +177,10 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 		c.JSON(201, jsnArrPld)
 	})
 
+	r.GET("/console/assets", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "Assets endpoint"})
+	})
+
 	return r
 }
 
@@ -923,4 +927,33 @@ func TestPostRequestWithJsonPayload(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, []string{"11", "22"}, responseBody)
+}
+
+func TestConsoleAssets(t *testing.T) {
+    log.SetOutput(io.Discard)
+    defer log.SetOutput(os.Stderr)
+
+    var xssMdlwr XssMw
+    s := newServer(xssMdlwr)
+
+    req, err := http.NewRequest("GET", "/console/assets?sort=0&rule_tags=%E5%83%B5%E5%B0%B8%E7%BD%91%E7%BB%9C&rule_tags=%E6%97%A0%E6%95%88FID", nil)
+    assert.Nil(t, err)
+
+    resp := httptest.NewRecorder()
+    s.ServeHTTP(resp, req)
+
+    assert.Equal(t, 200, resp.Code)
+
+    if resp.Code != 200 {
+        return
+    }
+
+    var responseBody map[string]any
+    err = json.Unmarshal(resp.Body.Bytes(), &responseBody)
+    if err != nil {
+        t.Logf("Error unmarshaling response body: %v", err)
+        return
+    }
+
+    // Verify the response body as needed
 }
