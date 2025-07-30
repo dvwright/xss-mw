@@ -229,7 +229,7 @@ func (mw *XssMw) HandleGETRequest(c *gin.Context) error {
 		}
 		queryParams.Del(key)
 		for _, item := range items {
-			queryParams.Set(key, p.Sanitize(item))
+			queryParams.Add(key, p.Sanitize(item))
 		}
 	}
 	c.Request.URL.RawQuery = queryParams.Encode()

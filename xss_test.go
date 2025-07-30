@@ -810,5 +810,18 @@ func TestUGCPolityAllowSomeHTMLOnPost(t *testing.T) {
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
+func TestMissingQuery(t *testing.T) {
+	ctx := &gin.Context{
+		Request: &http.Request{},
+	}
+	ctx.Request.URL, _ = url.Parse("http://localhost/foo?k1[]=1&k1[]=2")
+	expected := ctx.Request.URL.Query()["k1[]"]
+	var xss XssMw
+	xss.HandleGETRequest(ctx)
+
+	got := ctx.QueryArray("k1[]")
+	assert.Equal(t, len(expected), len(got), "Check query after handle")
+}
+
 // TODO
 // prove the 3 types of filtering
