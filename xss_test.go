@@ -55,6 +55,12 @@ type UserExtended struct {
 	Ids      []string `json:"ids"`
 }
 
+type FileUpload struct {
+    PType    string `json:"ptype"`
+    ProjectID string `json:"project_id"`
+    Media    *multipart.FileHeader `json:"media"`
+}
+
 // Test as Gin Middleware
 func newServer(xssMdlwr XssMw) *gin.Engine {
 
@@ -153,6 +159,19 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 		}
 		c.JSON(201, users)
 	})
+
+	r.POST("/file_upload", func(c *gin.Context) {
+		var fileUpld FileUpload
+		// fmt.Printf("%#v", userExtnd)
+		err := c.Bind(&fileUpld)
+		if err != nil {
+			//fmt.Println(err)
+			c.JSON(404, gin.H{"msg": "Bind Failed."})
+			return
+		}
+		c.JSON(201, fileUpld)
+	})
+
 
 	return r
 }
@@ -770,8 +789,7 @@ func TestUGCPolityAllowSomeHTMLOnPost(t *testing.T) {
 	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
-	var xssMdlwr XssMw
-	xssMdlwr = XssMw{
+	var xssMdlwr = XssMw{
 		//TableWhitelist: []byte,
 		//FieldWhitelist []byte,
 		//TableFieldWhitelist []byte,
@@ -825,3 +843,54 @@ func TestMissingQuery(t *testing.T) {
 
 // TODO
 // prove the 3 types of filtering
+
+func TestPostRequestWithFormData(t *testing.T) {
+    log.SetOutput(io.Discard)
+    defer log.SetOutput(os.Stderr)
+
+    var xssMdlwr XssMw
+    s := newServer(xssMdlwr)
+
+    boundary := "----WebKitFormBoundaryNPigYRiWD8pd0yeW"
+
+    body := new(bytes.Buffer)
+    writer := multipart.NewWriter(body)
+
+    _ = writer.WriteField("ptype", "PDF")
+    _ = writer.WriteField("id", "1")
+
+    file, err := os.Open("test.pdf")
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer file.Close()
+
+    part, err := writer.CreateFormFile("media", "test.pdf")
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    _, err = io.Copy(part, file)
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    err = writer.Close()
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    req, err := http.NewRequest("POST", "/file_upload", body)
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    req.Header.Add("Content-Type", "multipart/form-data; boundary="+boundary)
+
+    resp := httptest.NewRecorder()
+    s.ServeHTTP(resp, req)
+
+    if resp.Code != 201 {
+        t.Errorf("Expected status code 201, but got %d", resp.Code)
+    }
+}

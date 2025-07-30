@@ -505,7 +505,7 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod any) (bytes.Buffer, 
 	default:
 		//var r = reflect.TypeOf(jbt) // debug type
 		//fmt.Printf("Unknown Type!:%v\n", r)
-		return bytes.Buffer{}, errors.New("Unknown Content Type Received")
+		return bytes.Buffer{}, errors.New("unknown content type received")
 	}
 }
 
