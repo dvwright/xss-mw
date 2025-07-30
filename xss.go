@@ -445,7 +445,7 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ctHdr string) error {
 //           map[string]any {}{"cre_at":"1481017167", "id":"2", "flt":"2.345", "user":"TestUser2", "email":"testUser2@example.com", "password":"!@$%^ASDF<html>2", "comment":"<img src=x onerror=alert(0)>"}
 //      }
 //}
-//
+
 func (mw *XssMw) HandleJson(c *gin.Context) error {
 	jsonBod, err := decodeJson(c.Request.Body)
 	if err != nil {
@@ -492,14 +492,21 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod any) (bytes.Buffer, 
 		var multiRec bytes.Buffer
 		multiRec.WriteByte('[')
 		for _, n := range jbt {
-			//fmt.Printf("Item: %v= %v\n", i, n)
-			xmj := n.(map[string]any)
-			var sbuff bytes.Buffer
-			buff = mw.ConstructJson(xmj, sbuff)
-			multiRec.WriteString(buff.String())
+			switch nt := n.(type) {
+			case map[string]any:
+				var sbuff bytes.Buffer
+				buff = mw.ConstructJson(nt, sbuff)
+				multiRec.WriteString(buff.String())
+			case string:
+				multiRec.WriteString(`"` + mw.escapeString(nt) + `"`)
+			default:
+				return bytes.Buffer{}, errors.New("unknown content type received")
+			}
 			multiRec.WriteByte(',')
 		}
-		multiRec.Truncate(multiRec.Len() - 1) // remove last ','
+		if multiRec.Len() > 1 {
+			multiRec.Truncate(multiRec.Len() - 1) // remove last ','
+		}
 		multiRec.WriteByte(']')
 		return multiRec, nil
 	default:
@@ -598,7 +605,7 @@ func (mw *XssMw) buildJsonApplyPolicy(interf any, buff bytes.Buffer, p *bluemond
 		buff.WriteByte(',')
 	default:
 		if v == nil {
-			buff.WriteString(fmt.Sprintf("%s", "null"))
+			buff.WriteString("null")
 			buff.WriteByte(',')
 		} else {
 			buff.WriteString(p.Sanitize(fmt.Sprintf("%v", v)))
@@ -626,4 +633,30 @@ func (mw *XssMw) unravelSlice(slce []any, p *bluemonday.Policy) bytes.Buffer {
 	buff.Truncate(buff.Len() - 1) // remove last ','
 	buff.WriteByte(']')
 	return buff
+}
+
+// escapeString escapes special JSON characters in a string.
+func (mw *XssMw) escapeString(s string) string {
+       var buf strings.Builder
+       for _, r := range s {
+               switch r {
+               case '\\':
+                       buf.WriteString(`\\`)
+               case '"':
+                       buf.WriteString(`\"`)
+               case '\b':
+                       buf.WriteString(`\b`)
+               case '\f':
+                       buf.WriteString(`\f`)
+               case '\n':
+                       buf.WriteString(`\n`)
+               case '\r':
+                       buf.WriteString(`\r`)
+               case '\t':
+                       buf.WriteString(`\t`)
+               default:
+                       buf.WriteRune(r)
+               }
+       }
+       return buf.String()
 }

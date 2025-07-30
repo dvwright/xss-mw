@@ -7,6 +7,7 @@ package xss
 // see https://raw.githubusercontent.com/gin-gonic/contrib/master/secure/secure_test.go
 
 import (
+	"encoding/json"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -56,9 +57,9 @@ type UserExtended struct {
 }
 
 type FileUpload struct {
-    PType    string `json:"ptype"`
-    ProjectID string `json:"project_id"`
-    Media    *multipart.FileHeader `json:"media"`
+	PType     string                `json:"ptype"`
+	ProjectID string                `json:"project_id"`
+	Media     *multipart.FileHeader `json:"media"`
 }
 
 // Test as Gin Middleware
@@ -137,10 +138,8 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 
 	r.POST("/user_extended", func(c *gin.Context) {
 		var userExtnd UserExtended
-		// fmt.Printf("%#v", userExtnd)
 		err := c.Bind(&userExtnd)
 		if err != nil {
-			//fmt.Println(err)
 			c.JSON(404, gin.H{"msg": "Bind Failed."})
 			return
 		}
@@ -150,10 +149,8 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 	// nested JSON
 	r.POST("/user_post_nested_json", func(c *gin.Context) {
 		var users Users
-		// fmt.Printf("%#v", users)
 		err := c.Bind(&users)
 		if err != nil {
-			//fmt.Println(err)
 			c.JSON(404, gin.H{"msg": "Bind Failed."})
 			return
 		}
@@ -162,16 +159,23 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 
 	r.POST("/file_upload", func(c *gin.Context) {
 		var fileUpld FileUpload
-		// fmt.Printf("%#v", userExtnd)
 		err := c.Bind(&fileUpld)
 		if err != nil {
-			//fmt.Println(err)
 			c.JSON(404, gin.H{"msg": "Bind Failed."})
 			return
 		}
 		c.JSON(201, fileUpld)
 	})
 
+	r.POST("/json_array_payload", func(c *gin.Context) {
+		var jsnArrPld []string
+		err := c.BindJSON(&jsnArrPld)
+		if err != nil {
+			c.JSON(400, gin.H{"msg": "Bind Failed."})
+			return
+		}
+		c.JSON(201, jsnArrPld)
+	})
 
 	return r
 }
@@ -600,7 +604,7 @@ func TestPasswordIsNotFiltered(t *testing.T) {
 // multipart form posts really need to be filtered!
 // TODO careful with content body such as files, images, audio files, etc!
 // Content-Disposition: form-data; name="comment"
-//>'>\"><img src=x onerror=alert(0)>
+// >'>\"><img src=x onerror=alert(0)>
 func TestXssFiltersMultiPartFormData(t *testing.T) {
 	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
@@ -668,11 +672,11 @@ func TestXssFiltersMultiPartFormData(t *testing.T) {
 	assert.JSONEq(t, expect, resp.Body.String())
 }
 
-//TODO
+// TODO
 // POST /post?id=1234&page=1 HTTP/1.1
 // Content-Type: application/x-www-form-urlencoded
-//name=manu&message=this_is_great
-//application/x-www-form-urlencoded
+// name=manu&message=this_is_great
+// application/x-www-form-urlencoded
 func TestXssFiltersXFormEncoded(t *testing.T) {
 	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
@@ -734,7 +738,8 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
 // TODO - prove Headers and Other Request fields left intact
 // Prove Headers left untouched
 // for example
-//      req.Header.Add("Authorization", "Bearer "+authToken)
+//
+//	req.Header.Add("Authorization", "Bearer "+authToken)
 func TestKeepsHeadersIntact(t *testing.T) {
 	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
@@ -845,52 +850,77 @@ func TestMissingQuery(t *testing.T) {
 // prove the 3 types of filtering
 
 func TestPostRequestWithFormData(t *testing.T) {
-    log.SetOutput(io.Discard)
-    defer log.SetOutput(os.Stderr)
+	log.SetOutput(io.Discard)
+	defer log.SetOutput(os.Stderr)
 
-    var xssMdlwr XssMw
-    s := newServer(xssMdlwr)
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
 
-    boundary := "----WebKitFormBoundaryNPigYRiWD8pd0yeW"
+	boundary := "----WebKitFormBoundaryNPigYRiWD8pd0yeW"
 
-    body := new(bytes.Buffer)
-    writer := multipart.NewWriter(body)
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
 
-    _ = writer.WriteField("ptype", "PDF")
-    _ = writer.WriteField("id", "1")
+	_ = writer.WriteField("ptype", "PDF")
+	_ = writer.WriteField("id", "1")
 
-    file, err := os.Open("test.pdf")
-    if err != nil {
-        t.Fatal(err)
-    }
-    defer file.Close()
+	file, err := os.Open("test.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
 
-    part, err := writer.CreateFormFile("media", "test.pdf")
-    if err != nil {
-        t.Fatal(err)
-    }
+	part, err := writer.CreateFormFile("media", "test.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-    _, err = io.Copy(part, file)
-    if err != nil {
-        t.Fatal(err)
-    }
+	_, err = io.Copy(part, file)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-    err = writer.Close()
-    if err != nil {
-        t.Fatal(err)
-    }
+	err = writer.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-    req, err := http.NewRequest("POST", "/file_upload", body)
-    if err != nil {
-        t.Fatal(err)
-    }
+	req, err := http.NewRequest("POST", "/file_upload", body)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-    req.Header.Add("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.Header.Add("Content-Type", "multipart/form-data; boundary="+boundary)
 
-    resp := httptest.NewRecorder()
-    s.ServeHTTP(resp, req)
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
 
-    if resp.Code != 201 {
-        t.Errorf("Expected status code 201, but got %d", resp.Code)
-    }
+	if resp.Code != 201 {
+		t.Errorf("Expected status code 201, but got %d", resp.Code)
+	}
+}
+
+func TestPostRequestWithJsonPayload(t *testing.T) {
+	log.SetOutput(io.Discard)
+	defer log.SetOutput(os.Stderr)
+
+	var xssMdlwr XssMw
+	s := newServer(xssMdlwr)
+
+	payload := `["11","22"]`
+	req, err := http.NewRequest("POST", "/json_array_payload", bytes.NewBufferString(payload))
+	assert.Nil(t, err)
+
+	req.Header.Add("Content-Type", "application/json")
+
+	resp := httptest.NewRecorder()
+	s.ServeHTTP(resp, req)
+
+	assert.Equal(t, 201, resp.Code)
+
+	var responseBody []string
+	err = json.Unmarshal(resp.Body.Bytes(), &responseBody)
+	assert.Nil(t, err)
+
+	assert.Equal(t, []string{"11", "22"}, responseBody)
 }
