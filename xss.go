@@ -14,13 +14,13 @@
 //
 // * Multipart Form Data - Content-Type multipart/form-data
 //
-//
 // XSS filtering is performed by HTML sanitizer https://github.com/microcosm-cc/bluemonday
 //
-// The two packaged policies are available, UGCPolicy or StrictPolicy
+// # The two packaged policies are available, UGCPolicy or StrictPolicy
 //
 // The default is to the strictest policy - StrictPolicy()
-//  use of UGCPolicy is untested at this time
+//
+//	use of UGCPolicy is untested at this time
 package xss
 
 // TODO: support User supplied Bluemondy policy
@@ -44,7 +44,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/url"
 
@@ -82,9 +81,9 @@ type XssMw struct {
 	BmPolicy string
 }
 
-type XssMwJson map[string]interface{}
+type XssMwJson map[string]any
 
-// XssMw implements the Gin Middleware interface.
+// XssMw implements the Gin Middleware any.
 func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 
 	// TODO - should make this overwriteable in case user does not want any safe fields
@@ -92,7 +91,6 @@ func (mw *XssMw) RemoveXss() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		mw.callRemoveXss(c)
-		return
 	}
 }
 
@@ -173,7 +171,8 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 
 	// https://golang.org/src/net/http/request.go
 	// check expected application type
-	if ReqMethod == "POST" || ReqMethod == "PUT" {
+	switch ReqMethod {
+	case "POST", "PUT":
 		//ReqURL := c.Request.URL
 		//fmt.Printf("%v URL\n", ReqURL)
 
@@ -205,7 +204,7 @@ func (mw *XssMw) XssRemove(c *gin.Context) error {
 				return err
 			}
 		}
-	} else if ReqMethod == "GET" {
+	case "GET":
 		err := mw.HandleGETRequest(c)
 		if err != nil {
 			return err
@@ -302,9 +301,9 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 	if bq.Len() > 1 {
 		bq.Truncate(bq.Len() - 1) // remove last '&'
 		bodOut := bq.String()
-		c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bodOut)))
+		c.Request.Body = io.NopCloser(bytes.NewBuffer([]byte(bodOut)))
 	} else {
-		c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buf.String())))
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(buf.Bytes()))
 	}
 
 	return nil
@@ -354,7 +353,7 @@ func (mw *XssMw) HandleXFormEncoded(c *gin.Context) error {
 func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ctHdr string) error {
 	var ioreader io.Reader = c.Request.Body
 
-	boundary := ctHdr[strings.Index(ctHdr, "boundary=")+9 : len(ctHdr)]
+	boundary := ctHdr[strings.Index(ctHdr, "boundary=")+9 : ]
 
 	reader := multipart.NewReader(ioreader, boundary)
 
@@ -395,7 +394,7 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ctHdr string) error {
 		} else {
 			multiPrtFrm.WriteString(`Content-Disposition: form-data; name="` + part.FormName() + "\";\r\n\r\n")
 			p := bluemonday.StrictPolicy()
-			if "password" == part.FormName() {
+			if part.FormName() == "password" {
 				multiPrtFrm.WriteString(buf.String() + "\r\n")
 			} else {
 				multiPrtFrm.WriteString(p.Sanitize(buf.String()) + "\r\n")
@@ -406,7 +405,7 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ctHdr string) error {
 
 	//fmt.Println("MultiPartForm Out %v", multiPrtFrm.String())
 
-	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(multiPrtFrm.String())))
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(multiPrtFrm.Bytes()))
 
 	return nil
 }
@@ -417,33 +416,33 @@ func (mw *XssMw) HandleMultiPartFormData(c *gin.Context, ctHdr string) error {
 //
 // * 1st type filter - basic key:value - most common
 //
-//    map[string]interface {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
+//    map[string]any {}{"updated_by":"534", "updated_at":"1480831130", "id":"1", "name":"foo"}
 //
 // * 2nd type an id with associated ids list
 //
-//     map[string]interface {}{"project_id":"1", "talent_ids":[]interface {}{"1", "4", "8"}}
+//     map[string]any {}{"project_id":"1", "talent_ids":[]any {}{"1", "4", "8"}}
 // - NOTE changes from ["1", "4", "8"] to [1,4,8]
 //
 // * 3rd type an "array of records"
 //
-//   []interface {}{
-//      map[string]interface {}{"name":"asd", "url":"/data/1/as",
+//   []any {}{
+//      map[string]any {}{"name":"asd", "url":"/data/1/as",
 //                              "user_id":"537", "username":"Test User ©", "created_by":"537", "id":"286",
 //                              "fqdn":"audio class", "project_id":"1", "path":"/tmp/store/1/as",
 //                              "updated_at":"1480791630", "status":"NEW",
 //                              "updated_by":"537", "created_at":"1480450694"},
-//      map[string]interface {}{"name":"asd2", "url":"/data/2/as", etc... },
-//      map[string]interface {}{"name":"asd3", "url":"/data/3/as", etc... },
+//      map[string]any {}{"name":"asd2", "url":"/data/2/as", etc... },
+//      map[string]any {}{"name":"asd3", "url":"/data/3/as", etc... },
 //      ...
 //   }
 //
 // * 4th type "complex array/nested records"
 //
-//  map[string]interface {}{
+//  map[string]any {}{
 //      "id":"1",
-//      "users":[]interface {}{
-//           map[string]interface {}{"id":"1", "flt":"1.345", "user":"TestUser1", "email":"testUser1@example.com", "password":"!@$%^ASDF<html>1", "comment":"<img src=x onerror=alert(0)>", "cre_at":"1481017167"},
-//           map[string]interface {}{"cre_at":"1481017167", "id":"2", "flt":"2.345", "user":"TestUser2", "email":"testUser2@example.com", "password":"!@$%^ASDF<html>2", "comment":"<img src=x onerror=alert(0)>"}
+//      "users":[]any {}{
+//           map[string]any {}{"id":"1", "flt":"1.345", "user":"TestUser1", "email":"testUser1@example.com", "password":"!@$%^ASDF<html>1", "comment":"<img src=x onerror=alert(0)>", "cre_at":"1481017167"},
+//           map[string]any {}{"cre_at":"1481017167", "id":"2", "flt":"2.345", "user":"TestUser2", "email":"testUser2@example.com", "password":"!@$%^ASDF<html>2", "comment":"<img src=x onerror=alert(0)>"}
 //      }
 //}
 //
@@ -463,13 +462,13 @@ func (mw *XssMw) HandleJson(c *gin.Context) error {
 	err = mw.SetRequestBodyJson(c, buff)
 	if err != nil {
 		//fmt.Println("Set request body failed")
-		return errors.New("Set Request.Body Error")
+		return errors.New("set request.Body error")
 	}
 	return nil
 }
 
-func decodeJson(content io.Reader) (interface{}, error) {
-	var jsonBod interface{}
+func decodeJson(content io.Reader) (any, error) {
+	var jsonBod any
 	d := json.NewDecoder(content)
 	d.UseNumber()
 	err := d.Decode(&jsonBod)
@@ -480,21 +479,21 @@ func decodeJson(content io.Reader) (interface{}, error) {
 	return jsonBod, err
 }
 
-func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod interface{}) (bytes.Buffer, error) {
+func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod any) (bytes.Buffer, error) {
 	switch jbt := jsonBod.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		//fmt.Printf("\n\n\n1st type\n\n\n")
-		xmj := jsonBod.(map[string]interface{})
+		xmj := jsonBod.(map[string]any)
 		var sbuff bytes.Buffer
 		buff := mw.ConstructJson(xmj, sbuff)
 		return buff, nil
 	// TODO: need a test to prove this
-	case []interface{}:
+	case []any:
 		var multiRec bytes.Buffer
 		multiRec.WriteByte('[')
 		for _, n := range jbt {
 			//fmt.Printf("Item: %v= %v\n", i, n)
-			xmj := n.(map[string]interface{})
+			xmj := n.(map[string]any)
 			var sbuff bytes.Buffer
 			buff = mw.ConstructJson(xmj, sbuff)
 			multiRec.WriteString(buff.String())
@@ -508,7 +507,6 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod interface{}) (bytes.
 		//fmt.Printf("Unknown Type!:%v\n", r)
 		return bytes.Buffer{}, errors.New("Unknown Content Type Received")
 	}
-	return bytes.Buffer{}, errors.New("Unknown Error")
 }
 
 // encode processed body back to json and re-set http request body
@@ -518,7 +516,7 @@ func (mw *XssMw) SetRequestBodyJson(c *gin.Context, buff bytes.Buffer) error {
 	bodOut := buff.String()
 	//fmt.Printf("BodOut: %v\n", bodOut)
 
-	enc := json.NewEncoder(ioutil.Discard)
+	enc := json.NewEncoder(io.Discard)
 	//enc.SetEscapeHTML(false)
 	if merr := enc.Encode(&bodOut); merr != nil {
 		//fmt.Printf("%v", merr)
@@ -528,7 +526,7 @@ func (mw *XssMw) SetRequestBodyJson(c *gin.Context, buff bytes.Buffer) error {
 
 	//fmt.Printf("ReqBody Pre: %v\n", c.Request.Body)
 	//c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(buff.String())))
-	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(bodOut)))
+	c.Request.Body = io.NopCloser(bytes.NewBuffer([]byte(bodOut)))
 
 	//fmt.Printf("ReqBody Post: %v\n", c.Request.Body)
 	//fmt.Printf("ReqBody Post: %#v\n", c.Request.Body)
@@ -578,14 +576,14 @@ func (mw *XssMw) ConstructJson(xmj XssMwJson, buff bytes.Buffer) bytes.Buffer {
 	return buff
 }
 
-func (mw *XssMw) buildJsonApplyPolicy(interf interface{}, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
+func (mw *XssMw) buildJsonApplyPolicy(interf any, buff bytes.Buffer, p *bluemonday.Policy) bytes.Buffer {
 	switch v := interf.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		var sbuff bytes.Buffer
 		scnd := mw.ConstructJson(v, sbuff)
 		buff.WriteString(scnd.String())
 		buff.WriteByte(',')
-	case []interface{}:
+	case []any:
 		b := mw.unravelSlice(v, p)
 		buff.WriteString(b.String())
 		buff.WriteByte(',')
@@ -610,12 +608,12 @@ func (mw *XssMw) buildJsonApplyPolicy(interf interface{}, buff bytes.Buffer, p *
 	return buff
 }
 
-func (mw *XssMw) unravelSlice(slce []interface{}, p *bluemonday.Policy) bytes.Buffer {
+func (mw *XssMw) unravelSlice(slce []any, p *bluemonday.Policy) bytes.Buffer {
 	var buff bytes.Buffer
 	buff.WriteByte('[')
 	for _, n := range slce {
 		switch nn := n.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			var sbuff bytes.Buffer
 			scnd := mw.ConstructJson(nn, sbuff)
 			buff.WriteString(scnd.String())

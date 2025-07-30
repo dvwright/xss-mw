@@ -17,7 +17,7 @@ import (
 	"bytes"
 	//"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -159,7 +159,7 @@ func newServer(xssMdlwr XssMw) *gin.Engine {
 
 func TestKeepsValuesStripsHtmlOnGet(t *testing.T) {
 	// don't want to see log message while running tests
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -191,7 +191,7 @@ func TestKeepsValuesStripsHtmlOnGet(t *testing.T) {
 
 func TestKeepsValuesStripsHtmlWithSkipOnGet(t *testing.T) {
 	// don't want to see log message while running tests
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -224,7 +224,7 @@ func TestKeepsValuesStripsHtmlWithSkipOnGet(t *testing.T) {
 
 func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {
 	// don't want to see log message while running tests
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -262,7 +262,7 @@ func TestKeepsValuesStripsHtmlOnPost(t *testing.T) {
 
 func TestSupportsList(t *testing.T) {
 	// don't want to see log message while running tests
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -306,7 +306,7 @@ func TestSupportsList(t *testing.T) {
 }
 
 func TestSupportNestedJSONPost(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -450,7 +450,7 @@ func TestSupportNestedJSONPost(t *testing.T) {
 }
 
 func TestKeepsValuesStripsHtmlOnPut(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -486,7 +486,7 @@ func TestKeepsValuesStripsHtmlOnPut(t *testing.T) {
 }
 
 func TestXssSkippedOnNoContentLength(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -520,7 +520,7 @@ func TestXssSkippedOnNoContentLength(t *testing.T) {
 }
 
 func TestXssSkippedOnGetRequest(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -542,7 +542,7 @@ func TestXssSkippedOnGetRequest(t *testing.T) {
 
 // TODO - conf feature pass in fields to skip
 func TestPasswordIsNotFiltered(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -583,7 +583,7 @@ func TestPasswordIsNotFiltered(t *testing.T) {
 // Content-Disposition: form-data; name="comment"
 //>'>\"><img src=x onerror=alert(0)>
 func TestXssFiltersMultiPartFormData(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -655,7 +655,7 @@ func TestXssFiltersMultiPartFormData(t *testing.T) {
 //name=manu&message=this_is_great
 //application/x-www-form-urlencoded
 func TestXssFiltersXFormEncoded(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	//fmt.Println("TODO TestXssFiltersXFormEncoded")
@@ -717,14 +717,14 @@ func TestXssFiltersXFormEncoded(t *testing.T) {
 // for example
 //      req.Header.Add("Authorization", "Bearer "+authToken)
 func TestKeepsHeadersIntact(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	fmt.Println("TODO TestKeepsHeadersIntact")
 	t.Skip()
 
 	//// we don't want to see log message while running tests
-	//log.SetOutput(ioutil.Discard)
+	//log.SetOutput(io.Discard)
 	//defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
@@ -767,7 +767,7 @@ func TestKeepsHeadersIntact(t *testing.T) {
 
 func TestUGCPolityAllowSomeHTMLOnPost(t *testing.T) {
 	// don't want to see log message while running tests
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stderr)
 
 	var xssMdlwr XssMw
